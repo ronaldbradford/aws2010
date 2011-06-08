@@ -285,7 +285,8 @@ set_base_paths() {
   fi
 
   DEFAULT_CNF_FILE="${CNF_DIR}/${SCRIPT_NAME}.cnf"
-  DEFAULT_LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.${DATE_TIME}.${SHORT_HOSTNAME}${LOG_EXT}"
+  DEFAULT_LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.${DATE_TIME}${LOG_EXT}"
+  DEFAULT_HOST_LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.${DATE_TIME}.${SHORT_HOSTNAME}${LOG_EXT}"
   DEFAULT_HOST_CNF_FILE="${CNF_DIR}/${SCRIPT_NAME}.${SHORT_HOSTNAME}.cnf"
 
   return 0
@@ -422,4 +423,15 @@ mysql_home() {
   return 0
 }
 
+#------------------------------------------------------------------- ec2_env --
+#  Check for correctly configured EC2 API tools
+#
+ec2_env() {
+  [ -z "${EC2_PRIVATE_KEY}" ] && [ -z "${EC2_CERT}" ] && error "EC2_PRIVATE_KEY and EC2_CERT must be specified"
+  [ -z "${EC2_PRIVATE_KEY}" ] && error "EC2_PRIVATE_KEY must be specified"
+  [ -z "${EC2_CERT}" ] && error "EC2_CERT must be specified"
+
+  [ -z `which ec2-describe-instances` ] && error "ec2-describe-instances not in path, Ensure ec2-api tools added to PATH"
+  return 0
+}
 # END

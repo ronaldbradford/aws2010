@@ -1,8 +1,8 @@
 #!/bin/sh
 #
 #-------------------------------------------------------------------------------
-# Name:     aws_audit.sh
-# Purpose:  AWS Audit of EC2/ELB Instances
+# Name:     aws_cost.sh
+# Purpose:  Calculate AWS running cost
 # Author:   Ronald Bradford  http://ronaldbradford.com
 #-------------------------------------------------------------------------------
 
@@ -21,47 +21,38 @@ SCRIPT_REVISION=""
 # Script specific variables
 #
 
+ec2_cost() {
+  FUNCTION="ec2_cost()"
+  [ $# -ne 0 ] && fatal "${FUNCTION} This function accepts no arguments."
+  [ -z "${EC2_INSTANCES}" ] && fatal "${FUNCTION} \$EC2_INSTANCES is not defined"
+  [ ! -f "${EC2_INSTANCES}" ] && error "EC2 Server Index '${EC2_INSTANCES} does not exist"
 
-#-------------------------------------------------------- determine_server_ip --
-determine_server_ip() {
-  local LB=$1
-  local LB_LIST=$2
-
-  for SERVER in `awk '{print $2}' ${LB_LIST}`
+  grep INSTANCE ${EC2_INSTANCES}  | grep running | awk '{print $9,$11}' | sort | uniq -c > ${TMP_FILE}
+  debug "Server counts"
+  [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
+  GRAND_TOTAL=0
+  SERVER_TOTAL=0
+  info "Using current pricing in ${DEFAULT_CNF_FILE}"
+  while read CNT TYPE ZONE
   do
-    IP=`grep "${SERVER}" ${EC2_INSTANCES} | awk '{print $4,$15}'`
-    debug "Got ${IP} for ${SERVER}"
-    echo "${LB} ${SERVER} ${IP}" >> ${SERVER_INDEX}
-  done
+    PRICE=`grep ${TYPE} ${DEFAULT_CNF_FILE} | grep "^ec2" |  awk '{print $4}'`
+    TOTAL=`expr $CNT \* $PRICE`
+    echo "$TOTAL,$CNT,$PRICE,$TYPE" >> ${DEFAULT_LOG_FILE}
+    GRAND_TOTAL=`expr ${GRAND_TOTAL} + ${TOTAL}`
+    SERVER_TOTAL=`expr ${SERVER_TOTAL} + ${CNT}`
+  done < ${TMP_FILE}
+
+  info "EC2 Instance breakdowns in '${DEFAULT_LOG_FILE}'"
+  PRINT_TOTAL=`echo "${GRAND_TOTAL}" | awk '{printf "$%0.2f",$1/100.0}'`
+  warn "Current hourly EC2 running cost = $PRINT_TOTAL for ${SERVER_TOTAL} servers"
 
   return 0
 }
 
-#----------------------------------------------------------- pre_lb_instances --
-per_elb_instances() {
-  for LB in `awk '{print $2}' ${ELB_INSTANCES}`
-  do
-    LB_LOG="${CNF_DIR}/elb.${LB}.txt"
-    elb-describe-instance-health ${LB} > ${LB_LOG}
-    COUNT=`cat ${LB_LOG} | wc -l`
-    info "Generating instance list for load balancer '${LB}'. Has ${COUNT} servers"
-    determine_server_ip ${LB} ${LB_LOG}
-  done
-
-return 0
-}
-
-
 #-------------------------------------------------------------------- process --
 process() {
-  info "Generating List of Load Balancers (ELB) '${ELB_INSTANCES}'"
-  elb-describe-lbs > ${ELB_INSTANCES}
-  info "Generating list of Instances  (EC2) '${EC2_INSTANCES}"
-  ec2-describe-instances > ${EC2_INSTANCES}
 
-  per_elb_instances
-  info "Generating ELB/EC2/IP cross reference '${SERVER_INDEX}'"
-
+  ec2_cost
   return 0
 
 }
@@ -69,8 +60,6 @@ process() {
 #------------------------------------------------------------- pre_processing --
 pre_processing() {
   ec2_env
-
-  ELB_INSTANCES="${CNF_DIR}/elb.txt"
   EC2_INSTANCES="${CNF_DIR}/ec2.txt"
   SERVER_INDEX="${CNF_DIR}/servers.txt"
 
