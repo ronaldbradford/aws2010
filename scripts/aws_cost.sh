@@ -45,6 +45,9 @@ ec2_cost() {
   info "EC2 Instance breakdowns in '${DEFAULT_LOG_FILE}'"
   PRINT_TOTAL=`echo "${GRAND_TOTAL}" | awk '{printf "$%0.2f",$1/100.0}'`
   warn "Current hourly EC2 running cost = $PRINT_TOTAL for ${SERVER_TOTAL} servers"
+  NOW=`date +%y%m%d.%H%M`
+  EPOCH=`date +%s`
+  echo "${EPOCH},${NOW},ec2,${GRAND_TOTAL},${SERVER_TOTAL}" >> ${LOG_DIR}/${SCRIPT_NAME}.log
 
   return 0
 }
