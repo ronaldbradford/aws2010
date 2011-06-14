@@ -10,7 +10,7 @@
 # Script Definition
 #
 SCRIPT_NAME=`basename $0 | sed -e "s/.sh$//"`
-SCRIPT_VERSION="0.10 09-JUN-2011"
+SCRIPT_VERSION="0.11 14-JUN-2011"
 SCRIPT_REVISION=""
 
 #-------------------------------------------------------------------------------
@@ -79,6 +79,8 @@ pre_processing() {
   [ -z "${PARAM_GROUP}" ] && PARAM_GROUP=`grep "^group" ${DEFAULT_CNF_FILE} | cut -d= -f2`
   [ -z "${PARAM_KEYPAIR}" ] && PARAM_KEYPAIR=`grep "^keypair" ${DEFAULT_CNF_FILE} | cut -d= -f2`
 
+  LAST_AMI=`tail -1 ${LOG_DIR}/ec2_clone.log | awk -F, '{print $3}'`
+
   return 0
 }
 
@@ -100,10 +102,11 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> [ -t instance-type | -r region | -k keypair | -g group | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -l [ -t instance-type | -r region | -k keypair | -g group | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -a         AMI to launch"
+  echo "    -l         Launch last cloned AMI"
   echo ""
   echo "  Optional:"
   echo "    -t         Type"
@@ -127,9 +130,10 @@ help() {
 process_args() {
   check_for_long_args $*
   debug "Processing supplied arguments '$*'"
-  while getopts a:r:g:t:k:qv OPTION
+  while getopts a:r:g:t:k:lqv OPTION
   do
     case "$OPTION" in
+      l)  PARAM_AMI=${LAST_AMI};;
       a)  PARAM_AMI=${OPTARG};;
       r)  PARAM_REGION=${OPTARG};;
       t)  PARAM_INSTANCE_TYPE=${OPTARG};;
