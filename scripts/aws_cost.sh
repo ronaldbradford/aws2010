@@ -10,7 +10,7 @@
 # Script Definition
 #
 SCRIPT_NAME=`basename $0 | sed -e "s/.sh$//"`
-SCRIPT_VERSION="0.10 08-JUN-2011"
+SCRIPT_VERSION="0.11 14-JUN-2011"
 SCRIPT_REVISION=""
 
 #-------------------------------------------------------------------------------
@@ -27,19 +27,29 @@ ec2_cost() {
   [ -z "${EC2_INSTANCES}" ] && fatal "${FUNCTION} \$EC2_INSTANCES is not defined"
   [ ! -f "${EC2_INSTANCES}" ] && error "EC2 Server Index '${EC2_INSTANCES} does not exist"
 
-  grep INSTANCE ${EC2_INSTANCES}  | grep running | awk '{print $9,$11}' | sort | uniq -c > ${TMP_FILE}
+  grep INSTANCE ${EC2_INSTANCES}  | grep running | awk -F'\t' '{print $10,$12,$22}' | sort | uniq -c > ${TMP_FILE}
   debug "Server counts"
   [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
   GRAND_TOTAL=0
   SERVER_TOTAL=0
   info "Using current pricing in ${DEFAULT_CNF_FILE}"
-  while read CNT TYPE ZONE
+  while read CNT TYPE ZONE SPOT
   do
-    PRICE=`grep ${TYPE} ${DEFAULT_CNF_FILE} | grep "^ec2" |  awk '{print $4}'`
-    TOTAL=`expr $CNT \* $PRICE`
-    echo "$TOTAL,$CNT,$PRICE,$TYPE" >> ${DEFAULT_LOG_FILE}
-    GRAND_TOTAL=`expr ${GRAND_TOTAL} + ${TOTAL}`
-    SERVER_TOTAL=`expr ${SERVER_TOTAL} + ${CNT}`
+    if [ -z "${SPOT}" ]
+    then
+      PRICE=`grep ${TYPE} ${DEFAULT_CNF_FILE} | grep "^ec2" | grep -v spot |  awk '{print $4}'`
+    else
+      PRICE=`grep ${TYPE} ${DEFAULT_CNF_FILE} | grep "^ec2" | grep spot |  awk '{print $4}'`
+    fi
+    if [ -z "${PRICE}" ]
+    then
+      warn "Unable to determine price for ${TYPE} ${ZONE} ${SPOT}"
+    else
+      TOTAL=`expr $CNT \* $PRICE`
+      echo "$TOTAL,$CNT,$PRICE,$TYPE,$SPOT" >> ${DEFAULT_LOG_FILE}
+      GRAND_TOTAL=`expr ${GRAND_TOTAL} + ${TOTAL}`
+      SERVER_TOTAL=`expr ${SERVER_TOTAL} + ${CNT}`
+    fi
   done < ${TMP_FILE}
 
   info "EC2 Instance breakdowns in '${DEFAULT_LOG_FILE}'"

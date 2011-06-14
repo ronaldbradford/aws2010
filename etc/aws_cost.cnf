@@ -12,3 +12,4 @@ ec2	us-east-1	c1.medium	17
 ec2	us-east-1	c1.xlarge	68
 ec2	us-east-1	cc1.4xlarge	160
 ec2	us-east-1	gc1.4xlarge	210
+ec2	us-east-1	c1.medium	7  spot
