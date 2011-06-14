@@ -57,6 +57,14 @@ ec2_launch() {
     STATUS=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $6}'`
     info "${INSTANCE} status is ${STATUS}"
   done
+  SERVER=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $4}'`
+  info "Server is '${SERVER}'"
+
+
+  NOW=`date +%y%m%d.%H%M`
+  EPOCH=`date +%s`
+  echo "${EPOCH},${NOW},${INSTANCE},${AMI},${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}.log
+
   return 0
 
 }
