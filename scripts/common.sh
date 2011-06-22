@@ -431,7 +431,12 @@ ec2_env() {
   [ -z "${EC2_PRIVATE_KEY}" ] && error "EC2_PRIVATE_KEY must be specified"
   [ -z "${EC2_CERT}" ] && error "EC2_CERT must be specified"
 
+
+  [ -z "${AWS_ELB_HOME}" ] && error "AWS_ELB_HOME must be specified"
+  [ -z "${JAVA_HOME}" ] && error "JAVA_HOME must be specified"
+
   [ -z `which ec2-describe-instances` ] && error "ec2-describe-instances not in path, Ensure ec2-api tools added to PATH"
+  [ -z `which elb-describe-lbs` ] && error "elb-describe-lbs not in path, Ensure elb-api tools added to PATH"
   return 0
 }
 # END
