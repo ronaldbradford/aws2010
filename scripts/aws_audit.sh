@@ -41,26 +41,46 @@ determine_server_ip() {
 per_elb_instances() {
   for LB in `awk '{print $2}' ${ELB_INSTANCES}`
   do
-    LB_LOG="${CNF_DIR}/elb.${LB}.txt"
-    elb-describe-instance-health ${LB} > ${LB_LOG}
+    LB_LOG="${CNF_DIR}/elb.${LB}${LOG_EXT}"
+    elb-describe-instance-health ${LB} > ${LB_LOG} 
+    RC=$?
+    [ $RC -ne 0 ] && error "[${RC}] Unable to describe Load Balancer Instances"
     COUNT=`cat ${LB_LOG} | wc -l`
     info "Generating instance list for load balancer '${LB}'. Has ${COUNT} servers"
     determine_server_ip ${LB} ${LB_LOG}
   done
-
-return 0
+  return 0
 }
 
+
+not_elb_instances() {
+  cat ${CNF_DIR}/elb.*${LOG_EXT} | awk '{print $2}' > ${TMP_FILE}
+  for INSTANCE in `grep INSTANCE ${EC2_INSTANCES} | grep running | grep c1.medium | awk '{print $2}'`
+  do
+    [ `grep ${INSTANCE} ${TMP_FILE} | wc -l` -ne 1 ] && warn "$INSTANCE not in LB"
+  done
+
+  return 0
+}
 
 #-------------------------------------------------------------------- process --
 process() {
   info "Generating List of Load Balancers (ELB) '${ELB_INSTANCES}'"
-  elb-describe-lbs > ${ELB_INSTANCES}
+
+
+  elb-describe-lbs > ${ELB_INSTANCES} 2>${TMP_FILE}
+  RC=$?
+  [ $RC -ne 0 ] && cat ${TMP_FILE} && error "[${RC}] Unable to describe Load Balancers"
   info "Generating list of Instances  (EC2) '${EC2_INSTANCES}"
-  ec2-describe-instances > ${EC2_INSTANCES}
+  ec2-describe-instances > ${EC2_INSTANCES} 2>${TMP_FILE}
+  RC=$?
+  [ $RC -ne 0 ] && cat ${TMP_FILE} && error "[${RC}] Unable to describe Instances"
 
   per_elb_instances
-  info "Generating ELB/EC2/IP cross reference '${SERVER_INDEX}'"
+  not_elb_instances
+  SERVER_COUNT=`cat ${SERVER_INDEX} | wc -l`
+  info "Generating ELB/EC2/IP cross reference '${SERVER_INDEX}' for ${SERVER_COUNT} servers"
+  awk '{print $4}' ${SERVER_INDEX} > ${HOST_INDEX}
 
   return 0
 
@@ -70,10 +90,12 @@ process() {
 pre_processing() {
   ec2_env
 
-  ELB_INSTANCES="${CNF_DIR}/elb.txt"
-  EC2_INSTANCES="${CNF_DIR}/ec2.txt"
-  SERVER_INDEX="${CNF_DIR}/servers.txt"
+  ELB_INSTANCES="${CNF_DIR}/elb${LOG_EXT}"
+  EC2_INSTANCES="${CNF_DIR}/ec2${LOG_EXT}"
+  SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
+  HOST_INDEX="${CNF_DIR}/hosts${LOG_EXT}"
 
+  > ${SERVER_INDEX}
   return 0
 }
 
@@ -121,14 +143,13 @@ process_args() {
   while getopts qv OPTION
   do
     case "$OPTION" in
-      X)  EXAMPLE_ARG=${OPTARG};;
       q)  QUIET="Y";; 
       v)  USE_DEBUG="Y";; 
     esac
   done
   shift `expr ${OPTIND} - 1`
 
-  #[ -z "${EXAMPLE_ARG}" ] && error "You must specify a sample value for -X. See --help for full instructions."
+  [ $# -gt 0 ] && error "${SCRIPT_NAME} does not accept any arguments"
 
   return 0
 }
