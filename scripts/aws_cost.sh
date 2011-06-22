@@ -57,7 +57,7 @@ ec2_cost() {
   warn "Current hourly EC2 running cost = $PRINT_TOTAL for ${SERVER_TOTAL} servers"
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  echo "${EPOCH},${NOW},ec2,${GRAND_TOTAL},${SERVER_TOTAL}" >> ${LOG_DIR}/${SCRIPT_NAME}.log
+  echo "${EPOCH},${NOW},ec2,${GRAND_TOTAL},${SERVER_TOTAL}" >> ${LOG_DIR}/${SCRIPT_NAME}.csv
 
   return 0
 }
