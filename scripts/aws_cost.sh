@@ -57,7 +57,7 @@ ec2_cost() {
   warn "Current hourly EC2 running cost = $PRINT_TOTAL for ${SERVER_TOTAL} servers"
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  echo "${EPOCH},${NOW},ec2,${GRAND_TOTAL},${SERVER_TOTAL}" >> ${LOG_DIR}/${SCRIPT_NAME}.csv
+  echo "${EPOCH}${SEP}${NOW}${SEP}ec2${SEP}${GRAND_TOTAL}${SEP}${SERVER_TOTAL}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
 
   return 0
 }
@@ -73,8 +73,8 @@ process() {
 #------------------------------------------------------------- pre_processing --
 pre_processing() {
   ec2_env
-  EC2_INSTANCES="${CNF_DIR}/ec2.txt"
-  SERVER_INDEX="${CNF_DIR}/servers.txt"
+  EC2_INSTANCES="${CNF_DIR}/ec2${LOG_EXT}"
+  SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
 
   return 0
 }

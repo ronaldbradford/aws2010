@@ -27,6 +27,9 @@ DEFAULT_LOG_DATE_FORMAT="+%Y%m%d %H:%M:%S %z"
 LOG_EXT=".txt"
 DATE_TIME_FORMAT="+%Y%m%d.%H%M"
 
+SEP=","
+DATA_EXT=".csv"
+
 #-------------------------------------------------------------------------------
 # Base Variables
 #
