@@ -22,6 +22,20 @@ SCRIPT_REVISION=""
 #
 
 
+#----------------------------------------------------------- no_elb_instances --
+no_elb_instances() {
+  local LB="N/A"
+  info "Generating instance list. No Load Balancers found"
+  for SERVER in `grep "^INSTANCE" ${EC2_INSTANCES} | awk '{print $2}'`
+  do
+    IP=`grep "${SERVER}" ${EC2_INSTANCES} | awk '{print $4,$15}'`
+    debug "Got ${IP} for ${SERVER}"
+    echo "${LB} ${SERVER} ${IP}" >> ${SERVER_INDEX}
+  done
+
+  return 0
+}
+
 #-------------------------------------------------------- determine_server_ip --
 determine_server_ip() {
   local LB=$1
@@ -70,14 +84,21 @@ process() {
 
   elb-describe-lbs > ${ELB_INSTANCES} 2>${TMP_FILE}
   RC=$?
+  NO_ELB=`grep "No LoadBalancers found" ${ELB_INSTANCES} | wc -l`
   [ $RC -ne 0 ] && cat ${TMP_FILE} && error "[${RC}] Unable to describe Load Balancers"
   info "Generating list of Instances  (EC2) '${EC2_INSTANCES}"
   ec2-describe-instances > ${EC2_INSTANCES} 2>${TMP_FILE}
   RC=$?
   [ $RC -ne 0 ] && cat ${TMP_FILE} && error "[${RC}] Unable to describe Instances"
 
-  per_elb_instances
-  not_elb_instances
+  if [ ${NO_ELB} -eq 1 ] 
+  then
+    no_elb_instances
+  else
+    per_elb_instances
+    no_elb_instances
+    not_elb_instances
+  fi
   SERVER_COUNT=`cat ${SERVER_INDEX} | wc -l`
   info "Generating ELB/EC2/IP cross reference '${SERVER_INDEX}' for ${SERVER_COUNT} servers"
   awk '{print $4}' ${SERVER_INDEX} > ${HOST_INDEX}
