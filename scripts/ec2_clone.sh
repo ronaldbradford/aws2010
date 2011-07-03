@@ -20,6 +20,7 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------------------
 # Script specific variables
 #
+#CLONE_IDENTIFIER="-search"
 
 
 #-------------------------------------------------------------------- process --
@@ -30,7 +31,7 @@ process() {
   [ -z "${INSTANCE}" ] && fatal "${FUNCTION} \$INSTANCE is not defined"
 
   local NOW=`date ${DATE_TIME_FORMAT}`
-  local NAME="clone-search-${NOW}"
+  local NAME="clone-${CLONE_IDENTIFIER}${NOW}"
   local DESCRIPTION="${SCRIPT_NAME}() ${INSTANCE} at ${NOW}"
   info "Generating Clone of ${INSTANCE} - ${NAME}"
   ec2-create-image ${INSTANCE} -d "${DESCRIPTION}" -n "${NAME}" > ${TMP_FILE}
@@ -64,6 +65,7 @@ pre_processing() {
   ec2_env
 
   SERVER_INDEX="${CNF_DIR}/servers.txt"
+  [ ! -f "${SERVER_INDEX}" ] && error "The required ${SERVER_INDEX} from aws_audit.sh does not exist"
   [ -z "${PARAM_INSTANCE}" ] && PARAM_INSTANCE=`tail -1 ${SERVER_INDEX} | awk '{print $2}'` && warn "Generated instance '${PARAM_INSTANCE}'"
   [ ! -z "${PARAM_INSTANCE}" ] && [ `grep ${PARAM_INSTANCE} ${SERVER_INDEX} | wc -l` -eq 0 ] && error "'${PARAM_INSTANCE}' not found in ${SERVER_INDEX}"
 
