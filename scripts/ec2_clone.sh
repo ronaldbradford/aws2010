@@ -53,7 +53,7 @@ process() {
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  echo "${EPOCH},${NOW},${AMI},${NAME},${INSTANCE}" >> ${LOG_DIR}/${SCRIPT_NAME}.log
+  echo "${EPOCH},${NOW},${AMI},${NAME},${INSTANCE}" >> ${LOG_DIR}/${SCRIPT_NAME}.csv
 
   return 0
 
@@ -88,12 +88,13 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -i <ec2-instance> [ -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh [ -i <ec2-instance> | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
-  echo "    -i         Instance to clone"
+  echo "    Nil"
   echo ""
   echo "  Optional:"
+  echo "    -i         Instance to clone"
   echo "    -q         Quiet Mode"
   echo "    -v         Verbose logging"
   echo "    --help     Script help"
@@ -121,7 +122,7 @@ process_args() {
   done
   shift `expr ${OPTIND} - 1`
 
-  #[ -z "${EXAMPLE_ARG}" ] && error "You must specify a sample value for -X. See --help for full instructions."
+  # pre-processing will validate instance if specified
 
   return 0
 }
