@@ -25,7 +25,7 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------- process --
 ec2_launch() {
   local FUNCTION="ec2_launch()"
-  [ $# -ne 5 ] && fatal "${FUNCTION} This function requires five arguments."
+  [ $# -lt 5 ] && fatal "${FUNCTION} This function requires at least five arguments."
   local AMI="$1"
   [ -z "${AMI}" ] && fatal "${FUNCTION} \$AMI is not defined"
   local INSTANCE_TYPE="$2"
@@ -36,12 +36,12 @@ ec2_launch() {
   [ -z "${GROUP}" ] && fatal "${FUNCTION} \$GROUP is not defined"
   local REGION="$5"
   [ -z "${REGION}" ] && fatal "${FUNCTION} \$REGION is not defined"
-  #local ZONE="$6"
+  local ZONE="$6"
 
 
   debug "${FUNCTION} $*"
   info "Launching instance of of ${AMI}"
-  ec2-run-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" > ${TMP_FILE}
+  ec2-run-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" --availability-zone "${ZONE}" > ${TMP_FILE}
   RC=$?
   [ ${RC} -ne 0 ] && error "ec2-run-instances generated an error code [${RC}]"
   [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
@@ -78,6 +78,7 @@ pre_processing() {
   [ -z "${PARAM_REGION}" ] && PARAM_REGION=`grep "^region" ${DEFAULT_CNF_FILE} | cut -d= -f2`
   [ -z "${PARAM_GROUP}" ] && PARAM_GROUP=`grep "^group" ${DEFAULT_CNF_FILE} | cut -d= -f2`
   [ -z "${PARAM_KEYPAIR}" ] && PARAM_KEYPAIR=`grep "^keypair" ${DEFAULT_CNF_FILE} | cut -d= -f2`
+  [ -z "${PARAM_ZONE}" ] && PARAM_ZONE=`grep "^zone" ${DEFAULT_CNF_FILE} | cut -d= -f2`
 
   LAST_AMI=`tail -1 ${LOG_DIR}/ec2_clone.log | awk -F, '{print $3}'`
 
@@ -102,7 +103,7 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -l [ -t instance-type | -r region | -k keypair | -g group | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -l [ -t instance-type | -r region | -k keypair | -g group | -z zone | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -a         AMI to launch"
@@ -113,6 +114,7 @@ help() {
   echo "    -r         Region"
   echo "    -k         Keypair"
   echo "    -g         Group"
+  echo "    -z         Availability Zone"
   echo "    -q         Quiet Mode"
   echo "    -v         Verbose logging"
   echo "    --help     Script help"
@@ -130,15 +132,16 @@ help() {
 process_args() {
   check_for_long_args $*
   debug "Processing supplied arguments '$*'"
-  while getopts a:r:g:t:k:lqv OPTION
+  while getopts a:r:g:t:k:z:lqv OPTION
   do
     case "$OPTION" in
-      l)  PARAM_AMI=${LAST_AMI};;
+      l)  PARAM_AMI=${LAST_AMI}; info "Using Last AMI ${LAST_AMI}";;
       a)  PARAM_AMI=${OPTARG};;
       r)  PARAM_REGION=${OPTARG};;
       t)  PARAM_INSTANCE_TYPE=${OPTARG};;
       k)  PARAM_KEYPAIR=${OPTARG};;
       g)  PARAM_GROUP=${OPTARG};;
+      z)  PARAM_ZONE=${OPTARG};;
       q)  QUIET="Y";; 
       v)  USE_DEBUG="Y";; 
     esac
@@ -150,6 +153,7 @@ process_args() {
   [ -z "${PARAM_INSTANCE_TYPE}" ] && error "You must specify a instance type with -t. See --help for full instructions."
   [ -z "${PARAM_KEYPAIR}" ] && error "You must specify a keypair with -k. See --help for full instructions."
   [ -z "${PARAM_GROUP}" ] && error "You must specify a group with -g. See --help for full instructions."
+  #[ -z "${PARAM_ZONE}" ] && error "You must specify a zone with -z. See --help for full instructions."
 
   return 0
 }
@@ -163,7 +167,7 @@ main () {
   pre_processing
   process_args $*
   commence
-  ec2_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION}
+  ec2_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION} ${PARAM_ZONE}
   complete
 
   return 0
