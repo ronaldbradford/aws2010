@@ -25,7 +25,7 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------- process --
 ec2_launch() {
   local FUNCTION="ec2_launch()"
-  [ $# -lt 5 ] && fatal "${FUNCTION} This function requires at least five arguments."
+  [ $# -ne 6 ] && fatal "${FUNCTION} This function requires six arguments."
   local AMI="$1"
   [ -z "${AMI}" ] && fatal "${FUNCTION} \$AMI is not defined"
   local INSTANCE_TYPE="$2"
@@ -37,6 +37,7 @@ ec2_launch() {
   local REGION="$5"
   [ -z "${REGION}" ] && fatal "${FUNCTION} \$REGION is not defined"
   local ZONE="$6"
+  [ -z "${ZONE}" ] && fatal "${FUNCTION} \$ZONE is not defined"
 
 
   debug "${FUNCTION} $*"
@@ -63,7 +64,7 @@ ec2_launch() {
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  echo "${EPOCH},${NOW},${INSTANCE},${AMI},${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}.log
+  echo "${EPOCH}${SEP}${NOW}${SEP}${INSTANCE}${SEP}${AMI}${SEP}${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
 
   return 0
 
@@ -80,7 +81,8 @@ pre_processing() {
   [ -z "${PARAM_KEYPAIR}" ] && PARAM_KEYPAIR=`grep "^keypair" ${DEFAULT_CNF_FILE} | cut -d= -f2`
   [ -z "${PARAM_ZONE}" ] && PARAM_ZONE=`grep "^zone" ${DEFAULT_CNF_FILE} | cut -d= -f2`
 
-  LAST_AMI=`tail -1 ${LOG_DIR}/ec2_clone.log | awk -F, '{print $3}'`
+  local CLONE_LOG="${LOG_DIR}/ec2_clone${DATA_EXT}"
+  [ -f "${CLONE_LOG}" ] && LAST_AMI=`tail -1 ${CLONE_LOG} | awk -F${SEP} '{print $3}'`
 
   return 0
 }
@@ -135,7 +137,7 @@ process_args() {
   while getopts a:r:g:t:k:z:lqv OPTION
   do
     case "$OPTION" in
-      l)  PARAM_AMI=${LAST_AMI}; info "Using Last AMI ${LAST_AMI}";;
+      l)  PARAM_AMI=${LAST_AMI}; info "Using Last AMI '${LAST_AMI}'";;
       a)  PARAM_AMI=${OPTARG};;
       r)  PARAM_REGION=${OPTARG};;
       t)  PARAM_INSTANCE_TYPE=${OPTARG};;
@@ -153,7 +155,7 @@ process_args() {
   [ -z "${PARAM_INSTANCE_TYPE}" ] && error "You must specify a instance type with -t. See --help for full instructions."
   [ -z "${PARAM_KEYPAIR}" ] && error "You must specify a keypair with -k. See --help for full instructions."
   [ -z "${PARAM_GROUP}" ] && error "You must specify a group with -g. See --help for full instructions."
-  #[ -z "${PARAM_ZONE}" ] && error "You must specify a zone with -z. See --help for full instructions."
+  [ -z "${PARAM_ZONE}" ] && error "You must specify a zone with -z. See --help for full instructions."
 
   return 0
 }
@@ -174,5 +176,6 @@ main () {
 }
 
 main $*
+exit 0
 
 # END
