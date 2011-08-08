@@ -9,7 +9,7 @@
 #-------------------------------------------------------------------------------
 # Script Definition
 #
-COMMON_SCRIPT_VERSION="0.10 02-JUN-2011"
+COMMON_SCRIPT_VERSION="0.11 08-AUG-2011"
 COMMON_SCRIPT_REVISION=""
 
 #-------------------------------------------------------------------------------
@@ -287,6 +287,8 @@ set_base_paths() {
     run "Creating required log directory" mkdir -p ${LOG_DIR}
   fi
 
+  COMMON_ENV_FILE="${CNF_DIR}/.common"
+  [ -f "${COMMON_ENV_FILE}" ] && . ${COMMON_ENV_FILE}
   DEFAULT_CNF_FILE="${CNF_DIR}/${SCRIPT_NAME}.cnf"
   DEFAULT_LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.${DATE_TIME}${LOG_EXT}"
   DEFAULT_HOST_LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.${DATE_TIME}.${SHORT_HOSTNAME}${LOG_EXT}"
