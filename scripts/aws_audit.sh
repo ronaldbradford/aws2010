@@ -24,9 +24,10 @@ SCRIPT_REVISION=""
 
 #----------------------------------------------------------- no_elb_instances --
 no_elb_instances() {
+  return 0
   local LB="N/A"
   info "Generating instance list. No Load Balancers found"
-  for SERVER in `grep "^INSTANCE" ${EC2_INSTANCES} | awk '{print $2}'`
+  for SERVER in `grep "^INSTANCE" ${EC2_INSTANCES} | grep running | awk '{print $2}'`
   do
     IP=`grep "${SERVER}" ${EC2_INSTANCES} | awk '{print $4,$15}'`
     debug "Got ${IP} for ${SERVER}"
@@ -41,11 +42,11 @@ determine_server_ip() {
   local LB=$1
   local LB_LIST=$2
 
-  for SERVER in `awk '{print $2}' ${LB_LIST}`
+  for SERVER in `grep InService ${LB_LIST} | awk '{print $2}'`
   do
-    IP=`grep "${SERVER}" ${EC2_INSTANCES} | awk '{print $4,$15}'`
-    debug "Got ${IP} for ${SERVER}"
-    echo "${LB} ${SERVER} ${IP}" >> ${SERVER_INDEX}
+    IP_DETAILS=`grep "${SERVER}" ${EC2_INSTANCES} |  awk -F'\t' '{print $4,$18,$22}'`
+    debug "Got ${IP_DETAILS} for ${SERVER}"
+    echo "${LB} ${SERVER} ${IP_DETAILS}" >> ${SERVER_INDEX}
   done
 
   return 0
