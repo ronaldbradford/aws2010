@@ -2,3 +2,4 @@ type=c1.medium
 region=us-east-1 
 keypair=NAME
 group=GROUP
+zone=us-east-1d
