@@ -35,6 +35,7 @@ process() {
   then
     warn "No current Information recorded for '${INSTANCE_TYPE}'"
     SINCE=""
+    LAST_DT="2001-01-01T00:00:00-0800"
   else
     LAST_DT=`tail -1 ${LOG_FILE} | awk '{print $3}'`
     SINCE="-s ${LAST_DT}"
@@ -53,10 +54,10 @@ process() {
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  echo "${EPOCH},${NOW},${INSTANCE_TYPE},${COST},${DT}" >>  ${LOG_DIR}/${SCRIPT_NAME}.log
+  echo "${EPOCH},${NOW},${INSTANCE_TYPE},${COST},${DT}" >>  ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
 
-  [ ! -f "${LOG_FILE}" ] && cp ${TMP_FILE} ${LOG_FILE} && return 0
-  [ ${COUNT} -gt 0 ] && cat ${TMP_FILE} | grep -v "${LAST_DT}" >> ${LOG_FILE}
+  [ ! -f "${LOG_FILE}" ] && tac ${TMP_FILE} > ${LOG_FILE} && return 0
+  [ ${COUNT} -gt 0 ] && tac ${TMP_FILE} | grep -v "${LAST_DT}" >> ${LOG_FILE}
 
 
 
