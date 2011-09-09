@@ -61,7 +61,8 @@ per_elb_instances() {
     RC=$?
     [ $RC -ne 0 ] && error "[${RC}] Unable to describe Load Balancer Instances"
     COUNT=`cat ${LB_LOG} | wc -l`
-    info "Generating instance list for load balancer '${LB}'. Has ${COUNT} servers"
+    IN_SERVICE=`grep InService ${LB_LOG} | wc -l`
+    info "Generating instance list for load balancer '${LB}'. Has ${COUNT} servers, ${IN_SERVICE} InService"
     determine_server_ip ${LB} ${LB_LOG}
   done
   return 0
@@ -82,15 +83,22 @@ not_elb_instances() {
 process() {
   info "Generating List of Load Balancers (ELB) '${ELB_INSTANCES}'"
 
+  elb-describe-lbs > ${TMP_FILE} 2>${TMP_FILE}.err
+  RC=$?
+  [ $RC -ne 0 ] && cat ${TMP_FILE}.err && error "[${RC}] Unable to describe Load Balancers"
+  NO_ELB=`grep "No LoadBalancers found" ${TMP_FILE} | wc -l`
 
-  elb-describe-lbs > ${ELB_INSTANCES} 2>${TMP_FILE}
-  RC=$?
-  NO_ELB=`grep "No LoadBalancers found" ${ELB_INSTANCES} | wc -l`
-  [ $RC -ne 0 ] && cat ${TMP_FILE} && error "[${RC}] Unable to describe Load Balancers"
+  DIFF=`diff ${ELB_INSTANCES} ${TMP_FILE} | wc -l`
+  [ ${DIFF} -eq 0 ] && info "No new ELB found" 
+  [ ${DIFF} -ne 0 ] && warn "Updating ELB List" && mv ${TMP_FILE} ${ELB_INSTANCES}
   info "Generating list of Instances  (EC2) '${EC2_INSTANCES}"
-  ec2-describe-instances > ${EC2_INSTANCES} 2>${TMP_FILE}
+  ec2-describe-instances > ${TMP_FILE} 2>${TMP_FILE}.err
   RC=$?
-  [ $RC -ne 0 ] && cat ${TMP_FILE} && error "[${RC}] Unable to describe Instances"
+  [ $RC -ne 0 ] && cat ${TMP_FILE}.err && error "[${RC}] Unable to describe Instances"
+  DIFF=`diff ${EC2_INSTANCES} ${TMP_FILE} | wc -l`
+  [ ${DIFF} -eq 0 ] && info "No change in EC2 instances detected, exiting nicely" && return 0
+  warn "Change in EC2 instances detected"
+  mv ${TMP_FILE} ${EC2_INSTANCES}
 
   if [ ${NO_ELB} -eq 1 ] 
   then
@@ -104,6 +112,8 @@ process() {
   info "Generating ELB/EC2/IP cross reference '${SERVER_INDEX}' for ${SERVER_COUNT} servers"
   awk '{print $4}' ${SERVER_INDEX} > ${HOST_INDEX}
 
+  CFG_SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
+  cp ${SERVER_INDEX} ${CFG_SERVER_INDEX}
   return 0
 
 }
@@ -114,10 +124,10 @@ pre_processing() {
 
   ELB_INSTANCES="${CNF_DIR}/elb${LOG_EXT}"
   EC2_INSTANCES="${CNF_DIR}/ec2${LOG_EXT}"
-  SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
+
+  SERVER_INDEX="${LOG_DIR}/servers.${DATE_TIME}${LOG_EXT}"
   HOST_INDEX="${CNF_DIR}/hosts${LOG_EXT}"
 
-  > ${SERVER_INDEX}
   return 0
 }
 
@@ -139,10 +149,9 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -X <example-string> [ -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh [ -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
-  echo "    -X         Example mandatory parameter"
   echo ""
   echo "  Optional:"
   echo "    -q         Quiet Mode"
