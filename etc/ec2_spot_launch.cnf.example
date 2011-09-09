@@ -1,0 +1,8 @@
+type=c1.medium 
+region=us-east-1 
+zone=us-east-1d
+keypair=NAME
+group=GROUP
+price=MAX PRICE e.g. 0.15
+number=1
+spottype=one-time

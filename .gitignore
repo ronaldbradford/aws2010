@@ -1,1 +1,2 @@
 etc/ec2_launch.cnf
+etc/ec2_spot_launch.cnf
