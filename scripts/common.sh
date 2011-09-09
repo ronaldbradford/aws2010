@@ -9,7 +9,7 @@
 #-------------------------------------------------------------------------------
 # Script Definition
 #
-COMMON_SCRIPT_VERSION="0.11 08-AUG-2011"
+COMMON_SCRIPT_VERSION="0.12 09-SEP-2011"
 COMMON_SCRIPT_REVISION=""
 
 #-------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ cleanup_exit() {
   service_unlock
 
   [ $EXIT_CODE -ne 0 ] && info "Exiting with status code of '${EXIT_CODE}'"
-  [ ! -z "${TMP_FILE}" ] && rm -f ${TMP_FILE}
+  [ ! -z "${TMP_FILE}" ] &&  [ -z "${USE_DEBUG}" ] && rm -f ${TMP_FILE}*
   [ ! -z "${STOP_FILE}" ] && rm -f ${STOP_FILE}
 
   exit ${EXIT_CODE}
