@@ -51,6 +51,7 @@ process() {
   DT=`tail -1 ${TMP_FILE} | awk '{print $3}'`
 
   info "Current cost for '${INSTANCE_TYPE} is '${COST}' at '${DT}'"
+  [ ! -z "${THRESHOLD}" ] && [ `echo "${THRESHOLD} ${COST}" | awk '{if ($2 >= $1) {print "Y" } else {print "N"}}'` = 'Y' ] && email ${TO_EMAIL} "WARNING: ${DATE_TIME} Spot Threshold of '${THRESHOLD}' cents exceed."
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
@@ -59,8 +60,6 @@ process() {
   [ ! -f "${LOG_FILE}" ] && tac ${TMP_FILE} > ${LOG_FILE} && return 0
   [ ${COUNT} -gt 0 ] && tac ${TMP_FILE} | grep -v "${LAST_DT}" >> ${LOG_FILE}
 
-
-
   return 0
 
 }
@@ -68,6 +67,9 @@ process() {
 #------------------------------------------------------------- pre_processing --
 pre_processing() {
   ec2_env
+  [ -f "${DEFAULT_CNF_FILE}" ] && TO_EMAIL=`grep "^email" ${DEFAULT_CNF_FILE} | cut -d= -f2`
+  [ -f "${DEFAULT_CNF_FILE}" ] && THRESHOLD=`grep "^threshold" ${DEFAULT_CNF_FILE} | cut -d= -f2`
+
   return 0
 }
 
