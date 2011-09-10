@@ -444,4 +444,31 @@ ec2_env() {
   [ -z `which elb-describe-lbs` ] && error "elb-describe-lbs not in path, Ensure elb-api tools added to PATH"
   return 0
 }
+
+#---------------------------------------------------------------------- email --
+email() {
+  local FUNCTION="common:email()"
+  [ $# -ne 2 ] && fatal "${FUNCTION} This function requires two arguments."
+  local TO_EMAIL="$1"
+  [ -z "${TO_EMAIL}" ] && fatal "${FUNCTION} \$TO_EMAIL is not defined"
+  local MSG="$2"
+  [ -z "${MSG}" ] && fatal "${FUNCTION} \$MSG is not defined"
+
+  local EMAIL
+
+  if [ ! -z "${TO_EMAIL}" ] 
+  then
+    info "Sending alert email to '${TO_EMAIL}'"
+    [ ! -f ${TMP_FILE} ] && touch ${TMP_FILE}
+    for EMAIL in `echo $TO_EMAIL | sed -e "s/,/ /g"`
+    do
+      cat ${TMP_FILE} | mailx -s "[${SCRIPT_NAME}] ${MSG}" ${EMAIL} 2>/dev/null
+    done
+  else
+    warn "No email notification recipient defined"
+  fi
+
+  return 0
+}
+
 # END
