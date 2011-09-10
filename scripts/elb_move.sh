@@ -64,7 +64,7 @@ register_with_elb() {
 #-------------------------------------------------------------------- process --
 process() {
   local FUNCTION="process()"
-  [ $# -ne 4 ] && fatal "${FUNCTION} This function requires three arguments."
+  [ $# -ne 4 ] && fatal "${FUNCTION} This function requires four arguments."
   local FROM_ELB="$1"
   [ -z "${FROM_ELB}" ] && fatal "${FUNCTION} \$FROM_ELB is not defined"
   local TO_ELB="$2"
