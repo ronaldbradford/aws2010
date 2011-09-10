@@ -86,10 +86,11 @@ ec2_spot_launch() {
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  for INSTANCE in $INSTANCES
+  grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $2, $4}' > ${TMP_FILE}
+  while read INSTANCE SERVER 
   do
     echo "${EPOCH}${SEP}${NOW}${SEP}${INSTANCE}${SEP}${AMI}${SEP}${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
-  done
+  done < ${TMP_FILE}
 
   return 0
 
