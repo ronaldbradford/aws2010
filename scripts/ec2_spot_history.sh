@@ -43,22 +43,30 @@ process() {
 
   info "Getting spot instance history for '${INSTANCE_TYPE}' since '${LAST_DT}'"
 
-  ec2-describe-spot-price-history -t ${INSTANCE_TYPE} -d "Linux/UNIX" ${SINCE} > ${TMP_FILE}
-  COUNT=`cat ${TMP_FILE} | grep -v ${LAST_DT} | wc -l`
+  ec2-describe-spot-price-history -t ${INSTANCE_TYPE} -d "Linux/UNIX" ${SINCE} | tac > ${TMP_FILE}.x
+  # Prune existing records (output holds 1 per zone)
+  diff -u ${LOG_FILE} ${TMP_FILE}.x | grep "^+" | sed -e "/^+++/d;s/^+//" > ${TMP_FILE}
+
+  [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
+
+  COUNT=`cat ${TMP_FILE} | wc -l`
   info "Have '${COUNT}' new spot prices"
 
-  COST=`tail -1 ${TMP_FILE} | awk '{print $2 * 100.0}'`
-  DT=`tail -1 ${TMP_FILE} | awk '{print $3}'`
+  if [ ${COUNT} -gt 0 ]
+  then
+    COST=`tail -1 ${TMP_FILE} | awk '{print $2 * 100.0}'`
+    DT=`tail -1 ${TMP_FILE} | awk '{print $3}'`
 
-  info "Current cost for '${INSTANCE_TYPE} is '${COST}' at '${DT}'"
-  [ ! -z "${THRESHOLD}" ] && [ `echo "${THRESHOLD} ${COST}" | awk '{if ($2 >= $1) {print "Y" } else {print "N"}}'` = 'Y' ] && email ${TO_EMAIL} "WARNING: ${DATE_TIME} Spot Threshold of '${THRESHOLD}' cents exceed."
+   info "Current cost for '${INSTANCE_TYPE} is '${COST}' at '${DT}'"
+   [ ! -z "${THRESHOLD}" ] && [ `echo "${THRESHOLD} ${COST}" | awk '{if ($2 >= $1) {print "Y" } else {print "N"}}'` = 'Y' ] && email ${TO_EMAIL} "WARNING: ${DATE_TIME} Spot Threshold of '${THRESHOLD}' cents exceed."
+  fi
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
   echo "${EPOCH},${NOW},${INSTANCE_TYPE},${COST},${DT}" >>  ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
 
-  [ ! -f "${LOG_FILE}" ] && tac ${TMP_FILE} > ${LOG_FILE} && return 0
-  [ ${COUNT} -gt 0 ] && tac ${TMP_FILE} | grep -v "${LAST_DT}" >> ${LOG_FILE}
+  [ ! -f "${LOG_FILE}" ] && cat ${TMP_FILE} > ${LOG_FILE} && return 0
+  [ ${COUNT} -gt 0 ] && cat ${TMP_FILE} >> ${LOG_FILE}
 
   return 0
 
@@ -69,6 +77,7 @@ pre_processing() {
   ec2_env
   [ -f "${DEFAULT_CNF_FILE}" ] && TO_EMAIL=`grep "^email" ${DEFAULT_CNF_FILE} | cut -d= -f2`
   [ -f "${DEFAULT_CNF_FILE}" ] && THRESHOLD=`grep "^threshold" ${DEFAULT_CNF_FILE} | cut -d= -f2`
+  [ -f "${DEFAULT_CNF_FILE}" ] && DEFAULT_ZONE=`grep "^zone" ${DEFAULT_CNF_FILE} | cut -d= -f2`
 
   return 0
 }
