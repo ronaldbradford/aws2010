@@ -58,7 +58,7 @@ process() {
     DT=`tail -1 ${TMP_FILE} | awk '{print $3}'`
 
    info "Current cost for '${INSTANCE_TYPE} is '${COST}' at '${DT}'"
-   [ ! -z "${THRESHOLD}" ] && [ `echo "${THRESHOLD} ${COST}" | awk '{if ($2 >= $1) {print "Y" } else {print "N"}}'` = 'Y' ] && email ${TO_EMAIL} "WARNING: ${DATE_TIME} Spot Threshold of '${THRESHOLD}' cents exceed."
+   [ ! -z "${THRESHOLD}" ] && [ `echo "${THRESHOLD} ${COST}" | awk '{if ($2 >= $1) {print "Y" } else {print "N"}}'` = 'Y' ] && email "WARNING: ${DATE_TIME} Spot Threshold of '${THRESHOLD}' cents exceed." "${TO_EMAIL}"
   fi
 
   NOW=`date +%y%m%d.%H%M`
