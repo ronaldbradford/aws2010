@@ -35,6 +35,7 @@ deregister_with_elb() {
 
   elb-deregister-instances-from-lb ${ELB} --instances ${INSTANCE} > ${TMP_FILE}
   RC=$?
+  debug_file "elb-deregister-instances-from-lb ${ELB} --instances ${INSTANCE}"
   [ ${RC} -ne 0 ] && warn "Unable to de-register with Load Balancer"`cat ${TMP_FILE}` 
   REMOVED=`grep ${INSTANCE} ${TMP_FILE} | wc -l`
   [ ${REMOVED} -ne 0 ] && warn "'${INSTANCE}' still registered with '${ELB}'"
@@ -54,12 +55,54 @@ register_with_elb() {
 
   elb-register-instances-with-lb ${ELB} --instances ${INSTANCE} > ${TMP_FILE}
   RC=$?
+  debug_file "elb-register-instances-with-lb ${ELB} --instances ${INSTANCE}"
   [ ${RC} -ne 0 ] && warn "Unable to register with Load Balancer"`cat ${TMP_FILE}` 
   ADDED=`grep ${INSTANCE} ${TMP_FILE} | wc -l`
   [ ${ADDED} -ne 1 ] && warn "'${INSTANCE}' not registered with '${ELB}'"
 
   return 0
 }
+
+
+record_elb_change() {
+  local FUNCTION="record_elb_change()"
+  [ $# -ne 3 ] && fatal "${FUNCTION} This function requires three arguments."
+  local FROM_ELB="$1"
+  [ -z "${FROM_ELB}" ] && fatal "${FUNCTION} \$FROM_ELB is not defined"
+  local TO_ELB="$2"
+  [ -z "${TO_ELB}" ] && fatal "${FUNCTION} \$TO_ELB is not defined"
+  local INSTANCES="$3"
+  [ -z "${INSTANCES}" ] && fatal "${FUNCTION} \$INSTANCES is not defined"
+
+  local INSTANCE
+
+  for INSTANCE in `echo ${INSTANCES} | sed -e "s/,/ /g"`
+  do
+    cp ${SERVER_INDEX} ${TMP_FILE}
+    sed -e "s/^${FROM_ELB} ${INSTANCE}/${TO_ELB} ${INSTANCE}/" ${TMP_FILE} > ${SERVER_INDEX}
+  done
+
+  return 0
+
+}
+
+
+get_instance_list() {
+  local FUNCTION="get_instance_list()"
+  [ $# -ne 2 ] && fatal "${FUNCTION} This function requires two arguments."
+  local FROM_ELB="$1"
+  [ -z "${FROM_ELB}" ] && fatal "${FUNCTION} \$FROM_ELB is not defined"
+  local COUNT="$2"
+  [ -z "${COUNT}" ] && fatal "${FUNCTION} \$COUNT is not defined"
+  debug "${FUNCTION} ($*)"
+
+  info "Generating list of '${COUNT}' instances from '${FROM_ELB}'"
+  PARAM_INSTANCES=`grep InService ${CNF_DIR}/elb.${FROM_ELB}.txt  | tail -${COUNT} | awk '{printf("%s,",$2)}' | sed -e "s/,$//g"`
+  info "Instance list is '${PARAM_INSTANCES}'"
+
+  return 0
+}
+    
 
 #-------------------------------------------------------------------- process --
 process() {
@@ -73,12 +116,13 @@ process() {
   [ -z "${INSTANCES}" ] && fatal "${FUNCTION} \$INSTANCES is not defined"
   local SKIP_CHECK="$4"
   [ -z "${SKIP_CHECK}" ] && fatal "${FUNCTION} \$SKIP_CHECK is not defined"
-
+  debug "${FUNCTION} ($*)"
 
   if [ "${SKIP_CHECK}" != "Y" ]
   then
     elb-describe-instance-health ${FROM_ELB} > ${TMP_FILE}
     RC=$?
+    debug_file "elb-describe-instance-health ${FROM_ELB}"
     [ $RC -ne 0 ] && error "[${RC}] Unable to describe Load Balancer '${FROM_ELB}' Instances"
 
     INSTANCE=${INSTANCES}
@@ -88,6 +132,7 @@ process() {
 
   deregister_with_elb ${FROM_ELB} ${INSTANCES}
   register_with_elb ${TO_ELB} ${INSTANCES}
+  record_elb_change ${FROM_ELB} ${TO_ELB} ${INSTANCES}
 
   return 0
 }
@@ -120,7 +165,7 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -f <from-elb> -t <to-elb> -i <instance,instance> [ -s | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -f <from-elb> -t <to-elb> -i <instance,instance> [ n <count> | -s | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -i         List of instances (comma separated)"
@@ -128,6 +173,7 @@ help() {
   echo "    -t         Move instances to ELB"
   echo ""
   echo "  Optional:"
+  echo "    -n         get 'n' random instances"
   echo "    -s         Skip pre checking of ELB instances"
   echo ""
   echo "    -q         Quiet Mode"
@@ -147,12 +193,16 @@ help() {
 process_args() {
   check_for_long_args $*
   debug "Processing supplied arguments '$*'"
-  while getopts f:t:i:sqv OPTION
+
+  PARAM_COUNT=1
+
+  while getopts f:t:i:n:sqv OPTION
   do
     case "$OPTION" in
       f)  PARAM_FROM_ELB=${OPTARG};;
       t)  PARAM_TO_ELB=${OPTARG};;
       i)  PARAM_INSTANCES=${OPTARG};;
+      n)  PARAM_COUNT=${OPTARG};;
       s)  PARAM_SKIP_CHECK="Y";;
       q)  QUIET="Y";; 
       v)  USE_DEBUG="Y";; 
@@ -163,6 +213,7 @@ process_args() {
   [ -z "${PARAM_INSTANCES}" ] && error "You must specify instance(s) with -i. See --help for full instructions."
   [ -z "${PARAM_FROM_ELB}" ] && error "You must specify a Load Balancer with -f. See --help for full instructions."
   [ -z "${PARAM_TO_ELB}" ] && error "You must specify a Load Balancer with -t. See --help for full instructions."
+  [ -z "${PARAM_COUNT}" ] && error "You must specify a count with -n. See --help for full instructions."
 
   return 0
 }
@@ -176,6 +227,7 @@ main () {
   pre_processing
   process_args $*
   commence
+  [ "${PARAM_INSTANCES}" = "random" ] && get_instance_list ${PARAM_FROM_ELB} ${PARAM_COUNT}
   process ${PARAM_FROM_ELB} ${PARAM_TO_ELB} ${PARAM_INSTANCES} ${PARAM_SKIP_CHECK}
   complete
 
