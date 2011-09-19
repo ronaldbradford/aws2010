@@ -177,6 +177,28 @@ debug() {
   return 0
 }
 
+#----------------------------------------------------------------- debug_file -- 
+# Log a debugging message and output supplied file or tmp file
+#
+debug_file() {
+  local FUNCTION="common:debug_file()"
+  [ $# -lt 1 ] && fatal "${FUNCTION} This function requires at least one argument."
+  local OUTPUT="$1"
+  [ -z "${OUTPUT}" ] && fatal "${FUNCTION} \$OUTPUT is not defined"
+
+  if [ ! -z "${USE_DEBUG}" ] 
+  then
+    local FILE_NAME="$2"
+    [ -z "${FILE_NAME}" ] && FILE_NAME=${TMP_FILE}
+    log "${DEBUG}" ${OUTPUT}
+    [  -f "${FILE_NAME}" ] &&  cat ${FILE_NAME}
+  fi
+
+  return 0
+}
+
+
+
 #--------------------------------------------------------------- manages_logs -- 
 # Manage logs to compress and purge
 #
@@ -448,11 +470,10 @@ ec2_env() {
 #---------------------------------------------------------------------- email --
 email() {
   local FUNCTION="common:email()"
-  [ $# -ne 2 ] && fatal "${FUNCTION} This function requires two arguments."
-  local TO_EMAIL="$1"
-  [ -z "${TO_EMAIL}" ] && fatal "${FUNCTION} \$TO_EMAIL is not defined"
-  local MSG="$2"
+  [ $# -lt 1 ] && fatal "${FUNCTION} This function requires one - two arguments."
+  local MSG="$1"
   [ -z "${MSG}" ] && fatal "${FUNCTION} \$MSG is not defined"
+  local TO_EMAIL="$2"
 
   local EMAIL
 
@@ -460,10 +481,7 @@ email() {
   then
     info "Sending alert email to '${TO_EMAIL}'"
     [ ! -f ${TMP_FILE} ] && touch ${TMP_FILE}
-    for EMAIL in `echo $TO_EMAIL | sed -e "s/,/ /g"`
-    do
-      cat ${TMP_FILE} | mailx -s "[${SCRIPT_NAME}] ${MSG}" ${EMAIL} 2>/dev/null
-    done
+      cat ${TMP_FILE} | mailx -s "[${SCRIPT_NAME}] ${MSG}" ${TO_EMAIL} 2>/dev/null
   else
     warn "No email notification recipient defined"
   fi
