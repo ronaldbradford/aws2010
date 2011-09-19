@@ -20,7 +20,7 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------------------
 # Script specific variables
 #
-
+LAUNCH_SLEEP_TIME=6
 
 #-------------------------------------------------------------------- process --
 ec2_launch() {
@@ -52,7 +52,7 @@ ec2_launch() {
   local STATUS=""
   while [ "${STATUS}" != "running" ] 
   do
-    sleep 10
+    sleep ${LAUNCH_SLEEP_TIME} 
     ec2-describe-instances ${INSTANCE} > ${TMP_FILE}
     RC=$?
     STATUS=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $6}'`
@@ -61,6 +61,9 @@ ec2_launch() {
   debug_file "ec2-describe-instances ${INSTANCE} > ${TMP_FILE}"
   SERVER=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $4}'`
   info "Server is '${SERVER}'"
+   
+  verify_ssh ${SERVER}
+  RC=$?
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
@@ -68,9 +71,33 @@ ec2_launch() {
   NEW_INSTANCE=${INSTANCE}
 
   return 0
-
 }
 
+
+#-----------------------------------------------------------------verify_ssh --
+verify_ssh() {
+  local FUNCTION="verify_ssh()"
+  [ $# -ne 1 ] && fatal "${FUNCTION} This function requires one argument."
+  local SERVER="$1"
+  [ -z "${SERVER}" ] && fatal "${FUNCTION} \$SERVER is not defined"
+
+  info "Confirming SSH access"
+  sleep ${LAUNCH_SLEEP_TIME} 
+  local COUNT=0
+  while [ ${COUNT} -lt 5 ] 
+  do
+    ssh ${SERVER} uptime > ${TMP_FILE} 2>&1
+    RC=$?
+    [ ${RC} -eq 0 ] && info "SSH verified" && return 0
+    warn "Unable to SSH "`cat ${TMP_FILE}`
+    COUNT=`expr $COUNT + 1`
+    sleep `expr 5 \* ${COUNT}`
+  done
+  [ ${RC} -ne 0 ] && error "Unable to make initial connection to ${SERVER}"
+
+  return 1
+}
+  
 #---------------------------------------------------------- register_with_elb --
 register_with_elb() {
   local FUNCTION="register_with_elb()"
