@@ -25,6 +25,7 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------- process --
 ec2_launch() {
   local FUNCTION="ec2_launch()"
+  debug "${FUNCTION} $*"
   [ $# -ne 6 ] && fatal "${FUNCTION} This function requires six arguments."
   local AMI="$1"
   [ -z "${AMI}" ] && fatal "${FUNCTION} \$AMI is not defined"
@@ -39,13 +40,12 @@ ec2_launch() {
   local ZONE="$6"
   [ -z "${ZONE}" ] && fatal "${FUNCTION} \$ZONE is not defined"
 
-
-  debug "${FUNCTION} $*"
   info "Launching instance of of ${AMI}"
   ec2-run-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" --availability-zone "${ZONE}" > ${TMP_FILE}
-  RC=$?
+  local RC=$?
+  debug_file "ec2-run-instances ${AMI} --instance-type ${INSTANCE_TYPE} ..."
   [ ${RC} -ne 0 ] && error "ec2-run-instances generated an error code [${RC}]"
-  [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
+
   local INSTANCE
   INSTANCE=`grep INSTANCE ${TMP_FILE} | awk '{print $2}'`
   info "New instance is ${INSTANCE}"
@@ -54,21 +54,42 @@ ec2_launch() {
   do
     sleep 10
     ec2-describe-instances ${INSTANCE} > ${TMP_FILE}
-    [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
+    RC=$?
     STATUS=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $6}'`
     info "${INSTANCE} status is ${STATUS}"
   done
+  debug_file "ec2-describe-instances ${INSTANCE} > ${TMP_FILE}"
   SERVER=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $4}'`
   info "Server is '${SERVER}'"
-
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
   echo "${EPOCH}${SEP}${NOW}${SEP}${INSTANCE}${SEP}${AMI}${SEP}${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
+  NEW_INSTANCE=${INSTANCE}
 
   return 0
 
 }
+
+#---------------------------------------------------------- register_with_elb --
+register_with_elb() {
+  local FUNCTION="register_with_elb()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 2 ] && fatal "${FUNCTION} This function requires two arguments."
+  local ELB="$1"
+  [ -z "${ELB}" ] && fatal "${FUNCTION} \$ELB is not defined"
+  local INSTANCE="$2"
+  [ -z "${INSTANCE}" ] && fatal "${FUNCTION} \$INSTANCE is not defined"
+
+  info "Adding Instance '${INSTANCE}' to Load Balancer '${ELB}'"
+
+  elb-register-instances-with-lb ${ELB} --instances ${INSTANCE} > ${TMP_FILE}
+  RC=$?
+  debug_file "elb-register-instances-with-lb ${ELB} --instances ${INSTANCE}" 
+  [ ${RC} -ne 0 ] && warn "Unable to register with Load Balancer"`cat ${TMP_FILE}` 
+  return 0
+}
+
 
 #------------------------------------------------------------- pre_processing --
 pre_processing() {
@@ -105,11 +126,11 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -l [ -t instance-type | -r region | -k keypair | -g group | -z zone | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -c [ -t instance-type | -r region | -k keypair | -g group | -z zone | -l ELB | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -a         AMI to launch"
-  echo "    -l         Launch last cloned AMI"
+  echo "    -c         Launch last cloned AMI"
   echo ""
   echo "  Optional:"
   echo "    -t         Type"
@@ -134,16 +155,17 @@ help() {
 process_args() {
   check_for_long_args $*
   debug "Processing supplied arguments '$*'"
-  while getopts a:r:g:t:k:z:lqv OPTION
+  while getopts a:r:g:t:k:z:l:cqv OPTION
   do
     case "$OPTION" in
-      l)  PARAM_AMI=${LAST_AMI}; info "Using Last AMI '${LAST_AMI}'";;
+      c)  PARAM_AMI=${LAST_AMI}; info "Using Last AMI '${LAST_AMI}'";;
       a)  PARAM_AMI=${OPTARG};;
       r)  PARAM_REGION=${OPTARG};;
       t)  PARAM_INSTANCE_TYPE=${OPTARG};;
       k)  PARAM_KEYPAIR=${OPTARG};;
       g)  PARAM_GROUP=${OPTARG};;
       z)  PARAM_ZONE=${OPTARG};;
+      l)  PARAM_ELB=${OPTARG};;
       q)  QUIET="Y";; 
       v)  USE_DEBUG="Y";; 
     esac
@@ -170,6 +192,7 @@ main () {
   process_args $*
   commence
   ec2_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION} ${PARAM_ZONE}
+  [ $? -eq 0 ] && [ ! -z "${PARAM_ELB}" ]  && register_with_elb ${PARAM_ELB} ${NEW_INSTANCE}
   complete
 
   return 0
