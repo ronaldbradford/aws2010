@@ -51,8 +51,8 @@ ec2_spot_launch() {
   info "Launching ${NUMBER} ${SPOT_TYPE} instance(s)  (Max Price=${PRICE}) of ${AMI}"
   ec2-request-spot-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" --availability-zone "${ZONE}" -p ${PRICE} -n ${NUMBER} --type ${SPOT_TYPE}  > ${TMP_FILE}
   RC=$?
+  debug_file "ec2-request-spot-instances ${AMI} --instance-type ${INSTANCE_TYPE}"
   [ ${RC} -ne 0 ] && error "ec2-request-spot-instances generated an error code [${RC}]"
-  [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
 
   local SPOTS
   SPOTS=`awk -F'\t' '{print $2}' ${TMP_FILE}`
@@ -75,10 +75,12 @@ ec2_spot_launch() {
   do
     sleep 10
     ec2-describe-instances ${INSTANCES} > ${TMP_FILE}
-    [ ! -z "${USE_DEBUG}" ] && cat ${TMP_FILE}
+    RC=$?
+
     STATUS=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $6}' | sort | uniq`
     info "${INSTANCES} statuses are ${STATUS}"
   done
+  debug_file "ec2-describe-instances ${INSTANCES}"
   SERVER=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $4}'`
   info "Instance CSV List is "`echo ${INSTANCES} | sed -e "s/ /,/g"`
   info "Server List is '${SERVER}'"
@@ -136,13 +138,13 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -l [ -t instance-type | -r region | -k keypair | -g group | -z zone  | -p price | -n number | -s spottype | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -c [ -t instance-type | -r region | -k keypair | -g group | -z zone  | -p price | -n number | -s spottype | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -a         AMI to launch"
-  echo "    -l         Launch last cloned AMI"
   echo ""
   echo "  Optional:"
+  echo "    -c         Launch last cloned AMI"
   echo "    -t         Type"
   echo "    -r         Region"
   echo "    -k         Keypair"
@@ -169,10 +171,10 @@ help() {
 process_args() {
   check_for_long_args $*
   debug "Processing supplied arguments '$*'"
-  while getopts a:r:g:t:k:z:p:n:s:lqv OPTION
+  while getopts a:r:g:t:k:z:p:n:s:cqv OPTION
   do
     case "$OPTION" in
-      l)  PARAM_AMI=${LAST_AMI}; info "Using last recorded cloned AMI ${LAST_AMI}";;
+      c)  PARAM_AMI=${LAST_AMI}; info "Using last recorded cloned AMI ${LAST_AMI}";;
       a)  PARAM_AMI=${OPTARG};;
       r)  PARAM_REGION=${OPTARG};;
       t)  PARAM_INSTANCE_TYPE=${OPTARG};;
