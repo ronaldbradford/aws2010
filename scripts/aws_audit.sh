@@ -63,6 +63,10 @@ per_elb_instances() {
     COUNT=`cat ${LB_LOG} | wc -l`
     IN_SERVICE=`grep InService ${LB_LOG} | wc -l`
     info "Generating instance list for load balancer '${LB}'. Has ${COUNT} servers, ${IN_SERVICE} InService"
+
+    REMOVE_INSTANCES=`grep OutOfService ${LB_LOG} | awk '{printf("%s,",$2)}' | sed -e "s/,$//g"`
+    [ ! -z "${REMOVE_INSTANCES}" ] && info "Removing Instances '${REMOVE_INSTANCES}'"  && elb-deregister-instances-from-lb ${LB} --instances ${REMOVE_INSTANCES}
+
     determine_server_ip ${LB} ${LB_LOG}
   done
   return 0
