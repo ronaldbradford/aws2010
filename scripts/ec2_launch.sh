@@ -26,7 +26,7 @@ LAUNCH_SLEEP_TIME=6
 ec2_launch() {
   local FUNCTION="ec2_launch()"
   debug "${FUNCTION} $*"
-  [ $# -ne 6 ] && fatal "${FUNCTION} This function requires six arguments."
+  [ $# -lt 7 ] && fatal "${FUNCTION} This function requires seven/eight arguments."
   local AMI="$1"
   [ -z "${AMI}" ] && fatal "${FUNCTION} \$AMI is not defined"
   local INSTANCE_TYPE="$2"
@@ -39,36 +39,46 @@ ec2_launch() {
   [ -z "${REGION}" ] && fatal "${FUNCTION} \$REGION is not defined"
   local ZONE="$6"
   [ -z "${ZONE}" ] && fatal "${FUNCTION} \$ZONE is not defined"
+  local COUNT="$7"
+  [ -z "${COUNT}" ] && fatal "${FUNCTION} \$COUNT is not defined"
+  local ELB="$8"
+  [ -z "${ELB}" ] && warn "New instance(s) not being added to a load balancer"
 
   info "Launching instance of of ${AMI}"
-  ec2-run-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" --availability-zone "${ZONE}" > ${TMP_FILE}
+  ec2-run-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" --availability-zone "${ZONE}"  -n ${COUNT} > ${TMP_FILE}
   local RC=$?
-  debug_file "ec2-run-instances ${AMI} --instance-type ${INSTANCE_TYPE} ..."
+  debug_file "ec2-run-instances ${AMI} --instance-type ${INSTANCE_TYPE} ... -n ${COUNT}"
   [ ${RC} -ne 0 ] && error "ec2-run-instances generated an error code [${RC}]"
 
-  local INSTANCE
-  INSTANCE=`grep INSTANCE ${TMP_FILE} | awk '{print $2}'`
-  info "New instance is ${INSTANCE}"
+  INSTANCES=`grep INSTANCE ${TMP_FILE} | awk  -F'\t' '{print $2}'`
+  info "New instance(s) is ${INSTANCES}"
   local STATUS=""
   while [ "${STATUS}" != "running" ] 
   do
     sleep ${LAUNCH_SLEEP_TIME} 
-    ec2-describe-instances ${INSTANCE} > ${TMP_FILE}
+    ec2-describe-instances ${INSTANCES} > ${TMP_FILE}
     RC=$?
-    STATUS=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $6}'`
-    info "${INSTANCE} status is ${STATUS}"
+    STATUS=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $6}' | sort | uniq`
+    info "${INSTANCES} status(es) is ${STATUS}"
   done
-  debug_file "ec2-describe-instances ${INSTANCE} > ${TMP_FILE}"
-  SERVER=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $4}'`
-  info "Server is '${SERVER}'"
-   
-  verify_ssh ${SERVER}
-  RC=$?
+  debug_file "ec2-describe-instances ${INSTANCES} > ${TMP_FILE}"
 
-  NOW=`date +%y%m%d.%H%M`
-  EPOCH=`date +%s`
-  echo "${EPOCH}${SEP}${NOW}${SEP}${INSTANCE}${SEP}${AMI}${SEP}${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
-  NEW_INSTANCE=${INSTANCE}
+  grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $2, $4}' > ${TMP_FILE}.list
+  debug_file "grep INSTANCE" ${TMP_FILE}.list
+
+  local INSTANCE
+  local SERVER
+  for INSTANCE in `echo $INSTANCES`
+  do
+    SERVER=`grep ${INSTANCE} ${TMP_FILE}.list | awk '{print $2}'`
+    info "Server for '${INSTANCE}' is '${SERVER}'"
+    [ ! -z "${SERVER}" ] && verify_ssh ${SERVER}
+    RC=$?
+    NOW=`date +%y%m%d.%H%M`
+    EPOCH=`date +%s`
+    echo "${EPOCH}${SEP}${NOW}${SEP}${INSTANCE}${SEP}${AMI}${SEP}${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
+    [ ! -z "${ELB}" ]  && register_with_elb ${ELB} ${INSTANCE}
+  done 
 
   return 0
 }
@@ -180,9 +190,12 @@ help() {
 # Process Command Line Arguments
 #
 process_args() {
+  FUNCTION="process_args()"
+  debug "{$FUNCTION} ($*)"
   check_for_long_args $*
-  debug "Processing supplied arguments '$*'"
-  while getopts a:r:g:t:k:z:l:cqv OPTION
+
+  PARAM_COUNT=1
+  while getopts a:r:g:t:k:z:l:cn:qv OPTION
   do
     case "$OPTION" in
       c)  PARAM_AMI=${LAST_AMI}; info "Using Last AMI '${LAST_AMI}'";;
@@ -192,6 +205,7 @@ process_args() {
       k)  PARAM_KEYPAIR=${OPTARG};;
       g)  PARAM_GROUP=${OPTARG};;
       z)  PARAM_ZONE=${OPTARG};;
+      n)  PARAM_COUNT=${OPTARG};;
       l)  PARAM_ELB=${OPTARG};;
       q)  QUIET="Y";; 
       v)  USE_DEBUG="Y";; 
@@ -218,8 +232,7 @@ main () {
   pre_processing
   process_args $*
   commence
-  ec2_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION} ${PARAM_ZONE}
-  [ $? -eq 0 ] && [ ! -z "${PARAM_ELB}" ]  && register_with_elb ${PARAM_ELB} ${NEW_INSTANCE}
+  ec2_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION} ${PARAM_ZONE} ${PARAM_COUNT} ${PARAM_ELB}
   complete
 
   return 0
