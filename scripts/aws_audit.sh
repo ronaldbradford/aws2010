@@ -117,9 +117,11 @@ process() {
   awk '{print $4}' ${SERVER_INDEX} > ${HOST_INDEX}
 
   CFG_SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
+  ${SCRIPT_DIR}/detect_spot_change.sh -n ${SERVER_INDEX} & 
+  slepp 15
   cp ${SERVER_INDEX} ${CFG_SERVER_INDEX}
-  return 0
 
+  return 0
 }
 
 #------------------------------------------------------------- pre_processing --
