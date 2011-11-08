@@ -470,18 +470,21 @@ ec2_env() {
 #---------------------------------------------------------------------- email --
 email() {
   local FUNCTION="common:email()"
-  [ $# -lt 1 ] && fatal "${FUNCTION} This function requires one - two arguments."
+  [ $# -lt 1 ] && fatal "${FUNCTION} This function requires one - three arguments."
   local MSG="$1"
   [ -z "${MSG}" ] && fatal "${FUNCTION} \$MSG is not defined"
   local TO_EMAIL="$2"
+  local MAIL_FILE="$3"
 
   local EMAIL
 
   if [ ! -z "${TO_EMAIL}" ] 
   then
     info "Sending alert email to '${TO_EMAIL}'"
-    [ ! -f ${TMP_FILE} ] && touch ${TMP_FILE}
-      cat ${TMP_FILE} | mailx -s "[${SCRIPT_NAME}] ${MSG}" ${TO_EMAIL} 2>/dev/null
+    [ ! -f "${TMP_FILE}" ] && touch ${TMP_FILE}
+    [ -z "${MAIL_FILE}" ] && MAIL_FILE=${TMP_FILE}
+
+     cat ${MAIL_FILE} | mailx -s "[${SCRIPT_NAME}] ${MSG}" ${TO_EMAIL} 2>/dev/null
   else
     warn "No email notification recipient defined"
   fi

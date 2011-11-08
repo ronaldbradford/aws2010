@@ -81,6 +81,8 @@ ec2_spot_launch() {
     info "${INSTANCES} statuses are ${STATUS}"
   done
   debug_file "ec2-describe-instances ${INSTANCES}"
+
+  #cat ${TMP_FILE} >> ${SERVER_INDEX} 
   SERVER=`grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $4}'`
   info "Instance CSV List is "`echo ${INSTANCES} | sed -e "s/ /,/g"`
   info "Server List is '${SERVER}'"
@@ -101,6 +103,8 @@ ec2_spot_launch() {
 #------------------------------------------------------------- pre_processing --
 pre_processing() {
   ec2_env
+
+  SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
 
   [ ! -f "${DEFAULT_CNF_FILE}" ] && error "Unable to locate default configuration '${DEFAULT_CNF_FILE}'"
   info "Using default options from '${DEFAULT_CNF_FILE}'"

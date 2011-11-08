@@ -39,70 +39,113 @@ no_elb_instances() {
 
 #-------------------------------------------------------- determine_server_ip --
 determine_server_ip() {
-  local LB=$1
-  local LB_LIST=$2
+  local FUNCTION="determine_server_ip()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 1 ] && fatal "${FUNCTION} This function accepts one arguments."
+  [ -z "${EC2_INSTANCES}" ] && fatal "${FUNCTION} \$EC2_INSTANCES is not defined"
 
-  for SERVER in `grep InService ${LB_LIST} | awk '{print $2}'`
+  local LB=$1
+  local LB_LOG="${CNF_DIR}/elb.${LB}${LOG_EXT}"
+  #for SERVER in `grep InService ${LB_LOG} | awk '{print $2}'`
+  local INSTANCE
+  for INSTANCE in `cat ${LB_LOG} | awk '{print $2}'`
   do
-    IP_DETAILS=`grep "${SERVER}" ${EC2_INSTANCES} |  awk -F'\t' '{print $4,$18,$22}'`
-    debug "Got ${IP_DETAILS} for ${SERVER}"
-    echo "${LB} ${SERVER} ${IP_DETAILS}" >> ${SERVER_INDEX}
+    IP_DETAILS=`grep "${INSTANCE}" ${EC2_INSTANCES} |  grep INSTANCE | awk -F'\t' '{print $4,$18,$22}'`
+    [ -z "${IP_DETAILS}" ] && warn "${INSTANCE} in '${LB}' not found in '${EC2_INSTANCES}'"
+    debug "Got ${IP_DETAILS} for ${INSTANCE}"
+    echo "${LB} ${INSTANCE} ${IP_DETAILS}" >> ${SERVER_INDEX}
   done
 
   return 0
 }
 
 #----------------------------------------------------------- pre_lb_instances --
+# Expects ELB_INSTANCES 
 per_elb_instances() {
+  local FUNCTION="per_elb_instances()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 0 ] && fatal "${FUNCTION} This function accepts zero arguments."
+  [ -z "${ELB_INSTANCES}" ] && fatal "${FUNCTION} \$ELB_INSTANCES is not defined"
+
+  local LB
+  local LB_LOG
+  local COUNT
+  local IN_SERVICE
+  local REMOVE_INSTANCES
+  local RC
   for LB in `awk '{print $2}' ${ELB_INSTANCES}`
   do
     LB_LOG="${CNF_DIR}/elb.${LB}${LOG_EXT}"
     elb-describe-instance-health ${LB} > ${LB_LOG} 
     RC=$?
+    debug_file "elb-describe-instance-health ${LB}"
     [ $RC -ne 0 ] && error "[${RC}] Unable to describe Load Balancer Instances"
+
     COUNT=`cat ${LB_LOG} | wc -l`
     IN_SERVICE=`grep InService ${LB_LOG} | wc -l`
-    info "Generating instance list for load balancer '${LB}'. Has ${COUNT} servers, ${IN_SERVICE} InService"
+    info "Generating revised instance list for load balancer '${LB}'. Has ${COUNT} servers, ${IN_SERVICE} InService"
 
     REMOVE_INSTANCES=`grep OutOfService ${LB_LOG} | awk '{printf("%s,",$2)}' | sed -e "s/,$//g"`
-    [ ! -z "${REMOVE_INSTANCES}" ] && info "Removing Instances '${REMOVE_INSTANCES}'"  && elb-deregister-instances-from-lb ${LB} --instances ${REMOVE_INSTANCES}
+    #[ ! -z "${REMOVE_INSTANCES}" ] && warn "Removing Instances from ELB '${LB} for OutOfService '${REMOVE_INSTANCES}'"  && elb-deregister-instances-from-lb ${LB} --instances ${REMOVE_INSTANCES}
 
-    determine_server_ip ${LB} ${LB_LOG}
   done
+
   return 0
 }
 
 
+# Expects EC2_INSTANCES
 not_elb_instances() {
+  local FUNCTION="not_elb_instances()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 0 ] && fatal "${FUNCTION} This function accepts zero arguments."
+  [ -z "${EC2_INSTANCES}" ] && fatal "${FUNCTION} \$EC2_INSTANCES is not defined"
+
   cat ${CNF_DIR}/elb.*${LOG_EXT} | awk '{print $2}' > ${TMP_FILE}
-  for INSTANCE in `grep INSTANCE ${EC2_INSTANCES} | grep running | grep c1.medium | awk '{print $2}'`
+  local MISSING_ELB_FILE="${LOG_DIR}/missing_elb${LOG_EXT}"
+  local EC2_EXCLUDE_LIST="${CNF_DIR}/ec2.exclude.cnf"
+  [ ! -f "${EC2_EXCLUDE_LIST}" ] && touch ${EC2_EXCLUDE_LIST}
+  > ${MISSING_ELB_FILE}
+  for INSTANCE in `grep INSTANCE ${EC2_INSTANCES} | grep running | awk '{print $2}'`
   do
-    [ `grep ${INSTANCE} ${TMP_FILE} | wc -l` -ne 1 ] && warn "$INSTANCE not in LB"
+    if [ `grep ${INSTANCE} ${TMP_FILE} | wc -l` -ne 1 ] 
+    then
+      [ `grep ${INSTANCE} ${EC2_EXCLUDE_LIST} | wc -l` -eq 1 ] && continue
+      warn "$INSTANCE not in LB"
+      echo "${INSTANCE}" >> ${MISSING_ELB_FILE}
+    fi
   done
+
+  COUNT=`cat ${MISSING_ELB_FILE} | wc -l`
+  [ -s "${MISSING_ELB_FILE}" ]  &&  [ ! -z "${TO_EMAIL}" ]  &&   email "${DATE_TIME} '${COUNT}' instances missing from Load Balancers" "${TO_EMAIL}" ${MISSING_ELB_FILE}
 
   return 0
 }
 
-#-------------------------------------------------------------------- process --
-process() {
-  info "Generating List of Load Balancers (ELB) '${ELB_INSTANCES}'"
+#---------------------------------------------------------- generate_elb_list --
+# Expects ELB_INSTANCES
+generate_elb_list() {
+  local FUNCTION="generate_elb_list()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 0 ] && fatal "${FUNCTION} This function accepts zero arguments."
+  [ -z "${ELB_INSTANCES}" ] && fatal "${FUNCTION} \$ELB_INSTANCES is not defined"
 
+  info "Generating list of Load Balancers (ELB) '${ELB_INSTANCES}'"
   elb-describe-lbs > ${TMP_FILE} 2>${TMP_FILE}.err
-  RC=$?
-  [ $RC -ne 0 ] && cat ${TMP_FILE}.err && error "[${RC}] Unable to describe Load Balancers"
-  NO_ELB=`grep "No LoadBalancers found" ${TMP_FILE} | wc -l`
+  local RC=$?
+  debug_file "elb-describe-lbs"
+  [ $RC -ne 0 ] && cat ${TMP_FILE}.err ${TMP_FILE} && error "[${RC}] Unable to describe Load Balancers"
+  NO_ELB=`grep "No Load Balancers found" ${TMP_FILE} | wc -l`
 
-  DIFF=`diff ${ELB_INSTANCES} ${TMP_FILE} | wc -l`
-  [ ${DIFF} -eq 0 ] && info "No new ELB found" 
-  [ ${DIFF} -ne 0 ] && warn "Updating ELB List" && mv ${TMP_FILE} ${ELB_INSTANCES}
-  info "Generating list of Instances  (EC2) '${EC2_INSTANCES}"
-  ec2-describe-instances > ${TMP_FILE} 2>${TMP_FILE}.err
-  RC=$?
-  [ $RC -ne 0 ] && cat ${TMP_FILE}.err && error "[${RC}] Unable to describe Instances"
-  DIFF=`diff ${EC2_INSTANCES} ${TMP_FILE} | wc -l`
-  [ ${DIFF} -eq 0 ] && info "No change in EC2 instances detected, exiting nicely" && return 0
-  warn "Change in EC2 instances detected"
-  mv ${TMP_FILE} ${EC2_INSTANCES}
+  if [ ! -f "${ELB_INSTANCES}" ] 
+  then
+    mv ${TMP_FILE} ${ELB_INSTANCES} 
+  else
+    local DIFF
+    DIFF=`diff ${ELB_INSTANCES} ${TMP_FILE} | wc -l`
+    [ ${DIFF} -eq 0 ] && info "No new ELB found" 
+    [ ${DIFF} -ne 0 ] && warn "Updating ELB List" && mv ${TMP_FILE} ${ELB_INSTANCES}
+  fi
 
   if [ ${NO_ELB} -eq 1 ] 
   then
@@ -112,13 +155,74 @@ process() {
     no_elb_instances
     not_elb_instances
   fi
+
+  return 0
+}
+
+#---------------------------------------------------------- generate_elb_list --
+# Expects EC2_INSTANCES
+generate_ec2_list() {
+  local FUNCTION="generate_elb_list()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 0 ] && fatal "${FUNCTION} This function accepts zero arguments."
+  [ -z "${EC2_INSTANCES}" ] && fatal "${FUNCTION} \$EC2_INSTANCES is not defined"
+
+  info "Generating list of Instances  (EC2) '${EC2_INSTANCES}'"
+  ec2-describe-instances > ${TMP_FILE} 2>${TMP_FILE}.err
+  local RC=$?
+  debug_file "ec2-describe-instances"
+  [ $RC -ne 0 ] && cat ${TMP_FILE}.err ${TMP_FILE} && error "[${RC}] Unable to describe Instances"
+
+  local DIFF
+  DIFF=`diff ${EC2_INSTANCES} ${TMP_FILE} | wc -l`
+  [ ${DIFF} -eq 0 ] && info "No change in EC2 instances detected, exiting nicely" && return 1
+  warn "Change in EC2 instances detected"
+  mv ${TMP_FILE} ${EC2_INSTANCES}
+
+  return 0
+}
+
+#------------------------------------------------------ generate_server_index --
+# Expects ELB_INSTANCES, SERVER_INDEX
+generate_server_index() {
+  local FUNCTION="generate_server_index()"
+  debug "${FUNCTION} $*"
+  [ $# -ne 0 ] && fatal "${FUNCTION} This function accepts zero arguments."
+  [ -z "${ELB_INSTANCES}" ] && fatal "${FUNCTION} \$ELB_INSTANCES is not defined"
+  [ -z "${SERVER_INDEX}" ] && fatal "${FUNCTION} \$SERVER_INDEX is not defined"
+
+  local LB
+  > ${SERVER_INDEX}
+  for LB in `awk '{print $2}' ${ELB_INSTANCES}`
+  do
+    determine_server_ip ${LB} 
+  done
+
   SERVER_COUNT=`cat ${SERVER_INDEX} | wc -l`
   info "Generating ELB/EC2/IP cross reference '${SERVER_INDEX}' for ${SERVER_COUNT} servers"
+  info "Generating host index for parrallel processing '${HOST_INDEX}'"
   awk '{print $4}' ${SERVER_INDEX} > ${HOST_INDEX}
+
+  return 0
+}
+
+#-------------------------------------------------------------------- process --
+process() {
+  local FUNCTION="process()"
+  debug "${FUNCTION} $*"
+
+  generate_ec2_list
+  local RC=$?
+  [ $RC -eq 1 ] && return 0  # Clean exit
+  generate_elb_list
+
+
+  generate_server_index
 
   CFG_SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
   ${SCRIPT_DIR}/detect_spot_change.sh -n ${SERVER_INDEX} & 
-  slepp 15
+  # Give script time to get current config before it is overritten next step
+  sleep 15
   cp ${SERVER_INDEX} ${CFG_SERVER_INDEX}
 
   return 0
@@ -130,6 +234,7 @@ pre_processing() {
 
   ELB_INSTANCES="${CNF_DIR}/elb${LOG_EXT}"
   EC2_INSTANCES="${CNF_DIR}/ec2${LOG_EXT}"
+  [ -f "${DEFAULT_CNF_FILE}" ] && TO_EMAIL=`grep "^email" ${DEFAULT_CNF_FILE} | cut -d= -f2`
 
   SERVER_INDEX="${LOG_DIR}/servers.${DATE_TIME}${LOG_EXT}"
   HOST_INDEX="${CNF_DIR}/hosts${LOG_EXT}"

@@ -67,7 +67,7 @@ pre_processing() {
   SERVER_INDEX="${CNF_DIR}/servers.txt"
   [ ! -f "${SERVER_INDEX}" ] && error "The required ${SERVER_INDEX} from aws_audit.sh does not exist"
   [ -z "${PARAM_INSTANCE}" ] && PARAM_INSTANCE=`tail -1 ${SERVER_INDEX} | awk '{print $2}'` && warn "Generated instance '${PARAM_INSTANCE}'"
-  [ ! -z "${PARAM_INSTANCE}" ] && [ `grep ${PARAM_INSTANCE} ${SERVER_INDEX} | wc -l` -eq 0 ] && error "'${PARAM_INSTANCE}' not found in ${SERVER_INDEX}"
+  [ ! -z "${PARAM_INSTANCE}" ] && [ `grep ${PARAM_INSTANCE} ${SERVER_INDEX} | wc -l` -eq 0 ] && warn "'${PARAM_INSTANCE}' not found in ${SERVER_INDEX}"
 
   return 0
 }
