@@ -25,13 +25,13 @@ INSTALL_DIR="${HOME}/aws"
 current_versions() {
 
   info "Current AWS CLI versions"
-  if [ -z `which ec2ver` ]
+  if [ -z `which ec2ver 2>/dev/null` ]
   then
     warn "EC2 tools not installed"
   else
     info "EC2 tools "`ec2ver`" using "`which ec2ver`
   fi
-  if [ -z `which elb-version` ]
+  if [ -z `which elb-version 2>/dev/null` ]
   then
     warn "ELB tools not installed"
   else
