@@ -91,11 +91,23 @@ install_elb_tools(){
   return 0
 
 }
+
+followup() {
+  echo "export EC2_CERT=${INSTALL_DIR}keys/rb42llc/cert.pem
+export EC2_PRIVATE_KEY=${INSTALL_DIR}/keys/pk.pem" > ${INSTALL_DIR}/keys/env
+  info "Download the AWS X.509 keys and place in ${INSTALL_DIR}/keys as cert.pem and pk.pem"
+  info "Then run to verify \$ . ${INSTALL_DIR}/keys/env; ec2-describe-instances"
+  return 0
+
+}
+
 process() {
   mkdir -p ${INSTALL_DIR}
+  mkdir -p ${INSTALL_DIR}/keys
   current_versions
   install_ec2_tools
   install_elb_tools
+  followup
 
   return 0
 }
