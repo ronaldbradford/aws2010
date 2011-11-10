@@ -20,6 +20,7 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------------------
 # Script specific variables
 #
+INSTALL_DIR="${HOME}/aws"
 
 current_versions() {
 
@@ -28,32 +29,39 @@ current_versions() {
   then
     warn "EC2 tools not installed"
   else
-    info "EC2 tools "`ec2ver`
+    info "EC2 tools "`ec2ver`" using "`which ec2ver`
   fi
   if [ -z `which elb-version` ]
   then
     warn "ELB tools not installed"
   else
-    info "ELB tools "`elb-version`
+    info "ELB tools "`elb-version`" using "`which elb-version`
   fi
   return 0
 }
 
 install_ec2_tools() {
-echo "Download current version"
-cd /tmp
-rm -rf ec2-api-tools*
-#wget -O ec2-api-tools.zip "http://www.amazon.com/gp/redirect.html/ref=aws_rc_ec2tools?location=http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip&token=A80325AA4DAB186C80828ED5138633E3F49160D9"
-wget -O ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
-unzip ec2-api-tools.zip
-cd ec2-api-tools-*
-sudo cp bin/* /usr/local/bin
-sudo cp lib/* /usr/local/lib
+  local ARCHIVE="ec2-api-tools.zip"
+  info "Obtaining current version of EC2 Tools"
+  cd ${TMP_DIR}
+  rm -rf ec2-api-tools*
+  #wget -O ec2-api-tools.zip "http://www.amazon.com/gp/redirect.html/ref=aws_rc_ec2tools?location=http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip&token=A80325AA4DAB186C80828ED5138633E3F49160D9"
+  curl --silent -o ${ARCHIVE} http://s3.amazonaws.com/ec2-downloads/${ARCHIVE}
+  unzip -q ${ARCHIVE}
+ 
+  VER=`ls -d ec2-api-tools-*`
+  mv ${ARCHIVE} ${VER}.zip
+  mv ${VER}* ${INSTALL_DIR}
+  cd ${INSTALL_DIR}
+  [ -f "${INSTALL_DIR}/ec2" ] && rm -f ${INSTALL_DIR}/ec2
+  ln -s ${INSTALL_DIR}/${VER} ${INSTALL_DIR}/ec2
+  export EC2_HOME=${INSTALL_DIR}/ec2
+  export PATH=${EC2_HOME}/bin:$PATH
 
-export EC2_HOME=/usr/local
+  info "Docs at http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/"
 
-
-echo "Docs at http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/"
+  current_versions
+  return 0
 }
 
 install_elb_tools(){
@@ -72,7 +80,9 @@ elb-version
 
 }
 process() {
+  mkdir -p ${INSTALL_DIR}
   current_versions
+  install_ec2_tools
 
   return 0
 }
