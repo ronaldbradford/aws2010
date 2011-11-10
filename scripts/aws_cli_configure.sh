@@ -93,6 +93,7 @@ install_elb_tools(){
 }
 
 followup() {
+  info "export EC2_HOME=${INSTALL_DIR}/ec2; export AWS_ELB_HOME=${INSTALL_DIR}/elb;export PATH=\$EC2_HOME/bin:\$AWS_ELB_HOME/bin:\$PATH"
   echo "export EC2_CERT=${INSTALL_DIR}keys/rb42llc/cert.pem
 export EC2_PRIVATE_KEY=${INSTALL_DIR}/keys/pk.pem" > ${INSTALL_DIR}/keys/env
   info "Download the AWS X.509 keys and place in ${INSTALL_DIR}/keys as cert.pem and pk.pem"
