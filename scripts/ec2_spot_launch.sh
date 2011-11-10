@@ -10,7 +10,7 @@
 # Script Definition
 #
 SCRIPT_NAME=`basename $0 | sed -e "s/.sh$//"`
-SCRIPT_VERSION="0.11 04-AUG-2011"
+SCRIPT_VERSION="0.12 08-NOV-2011"
 SCRIPT_REVISION=""
 
 #-------------------------------------------------------------------------------
@@ -25,7 +25,8 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------- process --
 ec2_spot_launch() {
   local FUNCTION="ec2_spot_launch()"
-  [ $# -ne 9 ] && fatal "${FUNCTION} This function requires at least five arguments."
+  debug "${FUNCTION} $*"
+  [ $# -lt 9 ] && fatal "${FUNCTION} This function requires at least nine arguments."
   local AMI="$1"
   [ -z "${AMI}" ] && fatal "${FUNCTION} \$AMI is not defined"
   local INSTANCE_TYPE="$2"
@@ -44,9 +45,10 @@ ec2_spot_launch() {
   [ -z "${NUMBER}" ] && fatal "${FUNCTION} \$NUMBER is not defined"
   local SPOT_TYPE="$9"
   [ -z "${SPOT_TYPE}" ] && fatal "${FUNCTION} \$SPOT_TYPE is not defined"
+  shift
+  local ELB="$9"
+  [ -z "${ELB}" ] && warn "New instance(s) not being added to a load balancer"
 
-
-  debug "${FUNCTION} $*"
   debug "${FUNCTION} TMP_FILE=${TMP_FILE}"
   info "Launching ${NUMBER} ${SPOT_TYPE} instance(s)  (Max Price=${PRICE}) of ${AMI}"
   ec2-request-spot-instances ${AMI} --instance-type "${INSTANCE_TYPE}" -k "${KEYPAIR}" -g "${GROUP}" --region "${REGION}" --availability-zone "${ZONE}" -p ${PRICE} -n ${NUMBER} --type ${SPOT_TYPE}  > ${TMP_FILE}
@@ -90,14 +92,17 @@ ec2_spot_launch() {
 
   NOW=`date +%y%m%d.%H%M`
   EPOCH=`date +%s`
-  grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $2, $4}' > ${TMP_FILE}
+  grep INSTANCE  ${TMP_FILE} | awk  -F'\t' '{print $2, $4}' > ${TMP_FILE}.2
   while read INSTANCE SERVER 
   do
+    [ ! -z "${SERVER}" ] && verify_ssh ${SERVER}
+    RC=$?
     echo "${EPOCH}${SEP}${NOW}${SEP}${INSTANCE}${SEP}${AMI}${SEP}${SERVER}" >> ${LOG_DIR}/${SCRIPT_NAME}${DATA_EXT}
-  done < ${TMP_FILE}
+    [ ! -z "${ELB}" ]  && register_with_elb ${ELB} ${INSTANCE}
+  done < ${TMP_FILE}.2
+  rm -f ${TMP_FILE}.2
 
   return 0
-
 }
 
 #------------------------------------------------------------- pre_processing --
@@ -134,6 +139,10 @@ bootstrap() {
   . ${COMMON_SCRIPT_FILE}
   set_base_paths
 
+  local AWS_COMMON_SCRIPT_FILE="${DIRNAME}/aws_common.sh"
+  [ ! -f "${AWS_COMMON_SCRIPT_FILE}" ] && echo "ERROR: You must have a matching '${AWS_COMMON_SCRIPT_FILE}' with this script ${0}" && exit 1
+  . ${AWS_COMMON_SCRIPT_FILE}
+
   return 0
 }
 
@@ -142,21 +151,22 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -c [ -t instance-type | -r region | -k keypair | -g group | -z zone  | -p price | -n number | -s spottype | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -c [ -t instance-type | -r region | -k keypair | -g group | -z zone  | -p price | -n number | -s spottype | -l loadbalancer | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -a         AMI to launch"
+  echo "    -c         Launch last cloned AMI"
   echo ""
   echo "  Optional:"
-  echo "    -c         Launch last cloned AMI"
-  echo "    -t         Type"
-  echo "    -r         Region"
-  echo "    -k         Keypair"
   echo "    -g         Group"
-  echo "    -z         Availability Zone"
-  echo "    -p         Max Spot Price"
+  echo "    -k         Keypair"
+  echo "    -l         Load Balancer"
   echo "    -n         Number of Instances"
+  echo "    -p         Max Spot Price"
+  echo "    -r         Region"
   echo "    -s         Spot Type"
+  echo "    -t         Type"
+  echo "    -z         Availability Zone"
   echo ""
   echo "    -q         Quiet Mode"
   echo "    -v         Verbose logging"
@@ -165,6 +175,7 @@ help() {
   echo ""
   echo "  Dependencies:"
   echo "    common.sh"
+  echo "    aws_common.sh"
 
   return 0
 }
@@ -175,7 +186,7 @@ help() {
 process_args() {
   check_for_long_args $*
   debug "Processing supplied arguments '$*'"
-  while getopts a:r:g:t:k:z:p:n:s:cqv OPTION
+  while getopts a:r:g:t:k:z:p:n:s:l:cqv OPTION
   do
     case "$OPTION" in
       c)  PARAM_AMI=${LAST_AMI}; info "Using last recorded cloned AMI ${LAST_AMI}";;
@@ -188,6 +199,7 @@ process_args() {
       p)  PARAM_PRICE=${OPTARG};;
       n)  PARAM_NUMBER=${OPTARG};;
       s)  PARAM_SPOT_TYPE=${OPTARG};;
+      l)  PARAM_ELB=${OPTARG};;
       q)  QUIET="Y";; 
       v)  USE_DEBUG="Y";; 
     esac
@@ -216,7 +228,7 @@ main () {
   pre_processing
   process_args $*
   commence
-  ec2_spot_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION} ${PARAM_ZONE} ${PARAM_PRICE} ${PARAM_NUMBER} ${PARAM_SPOT_TYPE}
+  ec2_spot_launch ${PARAM_AMI} ${PARAM_INSTANCE_TYPE} ${PARAM_KEYPAIR} ${PARAM_GROUP} ${PARAM_REGION} ${PARAM_ZONE} ${PARAM_PRICE} ${PARAM_NUMBER} ${PARAM_SPOT_TYPE} ${PARAM_ELB}
   complete
 
   return 0

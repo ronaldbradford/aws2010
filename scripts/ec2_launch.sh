@@ -10,7 +10,7 @@
 # Script Definition
 #
 SCRIPT_NAME=`basename $0 | sed -e "s/.sh$//"`
-SCRIPT_VERSION="0.11 14-JUN-2011"
+SCRIPT_VERSION="0.12 08-NOV-2011"
 SCRIPT_REVISION=""
 
 #-------------------------------------------------------------------------------
@@ -20,7 +20,6 @@ SCRIPT_REVISION=""
 #-------------------------------------------------------------------------------
 # Script specific variables
 #
-LAUNCH_SLEEP_TIME=6
 
 #-------------------------------------------------------------------- process --
 ec2_launch() {
@@ -83,51 +82,6 @@ ec2_launch() {
   return 0
 }
 
-
-#-----------------------------------------------------------------verify_ssh --
-verify_ssh() {
-  local FUNCTION="verify_ssh()"
-  [ $# -ne 1 ] && fatal "${FUNCTION} This function requires one argument."
-  local SERVER="$1"
-  [ -z "${SERVER}" ] && fatal "${FUNCTION} \$SERVER is not defined"
-
-  info "Confirming SSH access"
-  sleep ${LAUNCH_SLEEP_TIME} 
-  local COUNT=0
-  while [ ${COUNT} -lt 5 ] 
-  do
-    ssh ${SERVER} uptime > ${TMP_FILE} 2>&1
-    RC=$?
-    [ ${RC} -eq 0 ] && info "SSH verified" && return 0
-    warn "Unable to SSH "`cat ${TMP_FILE}`
-    COUNT=`expr $COUNT + 1`
-    sleep `expr 5 \* ${COUNT}`
-  done
-  [ ${RC} -ne 0 ] && error "Unable to make initial connection to ${SERVER}"
-
-  return 1
-}
-  
-#---------------------------------------------------------- register_with_elb --
-register_with_elb() {
-  local FUNCTION="register_with_elb()"
-  debug "${FUNCTION} $*"
-  [ $# -ne 2 ] && fatal "${FUNCTION} This function requires two arguments."
-  local ELB="$1"
-  [ -z "${ELB}" ] && fatal "${FUNCTION} \$ELB is not defined"
-  local INSTANCE="$2"
-  [ -z "${INSTANCE}" ] && fatal "${FUNCTION} \$INSTANCE is not defined"
-
-  info "Adding Instance '${INSTANCE}' to Load Balancer '${ELB}'"
-
-  elb-register-instances-with-lb ${ELB} --instances ${INSTANCE} > ${TMP_FILE}
-  RC=$?
-  debug_file "elb-register-instances-with-lb ${ELB} --instances ${INSTANCE}" 
-  [ ${RC} -ne 0 ] && warn "Unable to register with Load Balancer"`cat ${TMP_FILE}` 
-  return 0
-}
-
-
 #------------------------------------------------------------- pre_processing --
 pre_processing() {
   ec2_env
@@ -155,6 +109,10 @@ bootstrap() {
   . ${COMMON_SCRIPT_FILE}
   set_base_paths
 
+  local AWS_COMMON_SCRIPT_FILE="${DIRNAME}/aws_common.sh"
+  [ ! -f "${AWS_COMMON_SCRIPT_FILE}" ] && echo "ERROR: You must have a matching '${AWS_COMMON_SCRIPT_FILE}' with this script ${0}" && exit 1
+  . ${AWS_COMMON_SCRIPT_FILE}
+
   return 0
 }
 
@@ -163,18 +121,21 @@ bootstrap() {
 #
 help() {
   echo ""
-  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -c [ -t instance-type | -r region | -k keypair | -g group | -z zone | -l ELB | -q | -v | --help | --version ]"
+  echo "Usage: ${SCRIPT_NAME}.sh -a <AMI> | -c [ -t instance-type | -r region | -k keypair | -g group | -z zone | -l ELB | -n count | -q | -v | --help | --version ]"
   echo ""
   echo "  Required:"
   echo "    -a         AMI to launch"
   echo "    -c         Launch last cloned AMI"
   echo ""
   echo "  Optional:"
-  echo "    -t         Type"
-  echo "    -r         Region"
-  echo "    -k         Keypair"
   echo "    -g         Group"
+  echo "    -k         Keypair"
+  echo "    -l         Load Balancer"
+  echo "    -n         Number of Servers"
+  echo "    -r         Region"
+  echo "    -t         Type"
   echo "    -z         Availability Zone"
+  echo ""
   echo "    -q         Quiet Mode"
   echo "    -v         Verbose logging"
   echo "    --help     Script help"
@@ -182,6 +143,7 @@ help() {
   echo ""
   echo "  Dependencies:"
   echo "    common.sh"
+  echo "    aws_common.sh"
 
   return 0
 }
