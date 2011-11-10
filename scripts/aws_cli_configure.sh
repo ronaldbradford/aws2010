@@ -87,6 +87,11 @@ process() {
   return 0
 }
 
+pre_processing() {
+  [ -z "${JAVA_HOME}" ] && error "JAVA_HOME must be defined"
+  return 0
+}
+
 #-----------------------------------------------------------------  bootstrap --
 # Essential script bootstrap
 #
@@ -147,6 +152,7 @@ main () {
   [ ! -z "${TEST_FRAMEWORK}" ] && return 1
   bootstrap
   process_args $*
+  pre_processing
   commence
   process
   complete
