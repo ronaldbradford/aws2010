@@ -47,9 +47,11 @@ install_ec2_tools() {
   rm -rf ec2-api-tools*
   #wget -O ec2-api-tools.zip "http://www.amazon.com/gp/redirect.html/ref=aws_rc_ec2tools?location=http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip&token=A80325AA4DAB186C80828ED5138633E3F49160D9"
   curl --silent -o ${ARCHIVE} http://s3.amazonaws.com/ec2-downloads/${ARCHIVE}
+  [ ! -f ${ARCHIVE} ] && error "Unable to obtain ${ARCHIVE} from AWS"
   unzip -q ${ARCHIVE}
  
   VER=`ls -d ec2-api-tools-*`
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version already detected" && return 0
   mv ${ARCHIVE} ${VER}.zip
   mv ${VER}* ${INSTALL_DIR}
   cd ${INSTALL_DIR}
@@ -65,24 +67,35 @@ install_ec2_tools() {
 }
 
 install_elb_tools(){
+  local ARCHIVE="ElasticLoadBalancing.zip"
+  info "Obtaining current version of ELB Tools"
+  cd ${TMP_DIR}
+  rm -rf ElasticLoadBalancing*
 
+  curl --silent -o ${ARCHIVE} http://ec2-downloads.s3.amazonaws.com/${ARCHIVE}
+  [ ! -f ${ARCHIVE} ] && error "Unable to obtain ${ARCHIVE} from AWS"
+  unzip -q ${ARCHIVE}
 
-echo "ELB Tools from http://aws.amazon.com/developertools/2536"
-wget -O ElasticLoadBalancing.zip http://ec2-downloads.s3.amazonaws.com/ElasticLoadBalancing.zip
-unzip ElasticLoadBalancing.zip
-cd ElasticLoadBalancing-*
+  VER=`ls -d ElasticLoadBalancing-*`
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version already detected" && return 0
+  mv ${ARCHIVE} ${VER}.zip
+  mv ${VER}* ${INSTALL_DIR}
+  cd ${INSTALL_DIR}
+  [ -f "${INSTALL_DIR}/elb" ] && rm -f ${INSTALL_DIR}/elb
+  ln -s ${INSTALL_DIR}/${VER} ${INSTALL_DIR}/elb
+  export AWS_ELB_HOME=${INSTALL_DIR}/elb
+  export PATH=${AWS_ELB_HOME}/bin:$PATH
 
-
-# Test new version
-export AWS_ELB_HOME=`pwd`
-export PATH=$AWS_ELB_HOME/bin:$PATH
-elb-version
+  info "ELB Tools from http://aws.amazon.com/developertools/2536"
+  current_versions
+  return 0
 
 }
 process() {
   mkdir -p ${INSTALL_DIR}
   current_versions
   install_ec2_tools
+  install_elb_tools
 
   return 0
 }
