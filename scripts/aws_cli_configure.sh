@@ -104,7 +104,6 @@ pre_processing() {
   if [ -z "${JAVA_HOME}" ] 
   then
     [ `uname` = "Darwin" ] && error "JAVA_HOME must be defined. For Mac OS X try \$ export JAVA_HOME=/System/Library/Frameworks/JavaVM.framework/Home/"
-  else
     error "JAVA_HOME must be defined"
   fi
   return 0
