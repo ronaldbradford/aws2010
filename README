@@ -1,9 +1,10 @@
 AWS Support Scripts
 -------------------
 
-/scripts - Running scripts
-
-/etc - Holds all configuration files
-
-
-/log  - Holds all logs files
+aws_audit.sh   - Perform an audit of EC2/ELB instances, creates cross matrix files for other scripts
+aws_cost.sh    - Determine the running cost of current EC2 instances
+ec2_clone.sh   - Clone an existing image.  Used for improved launching
+ec2_launch.sh  - Launch a given number of servers, check, and add to Load Balancer
+ec2_spot_history.sh - Generate and graph Spot History Prices
+ec2_spot_launch.sh -  Launch a given number of spot servers, check and add to Load Balancer
+elb_move.sh    - Move server between Load Balances (ELB)
