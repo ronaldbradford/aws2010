@@ -37,6 +37,20 @@ current_versions() {
   else
     info "ELB tools "`elb-version`" using "`which elb-version`
   fi
+  if [ -z `which rds-version 2>/dev/null` ]
+  then
+    warn "RDS tools not installed"
+  else
+    info "RDS tools "`rds-version`" using "`which rds-version`
+   fi
+
+  if [ -z `which as-version 2>/dev/null` ]
+  then
+    warn "AS tools not installed"
+  else
+    info "AS tools "`as-version`" using "`which as-version`
+   fi
+
   return 0
 }
 
@@ -51,7 +65,7 @@ install_ec2_tools() {
   unzip -q ${ARCHIVE}
  
   VER=`ls -d ec2-api-tools-*`
-  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version already detected" && return 0
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version '${VER}' already detected" && return 0
   mv ${ARCHIVE} ${VER}.zip
   mv ${VER}* ${INSTALL_DIR}
   cd ${INSTALL_DIR}
@@ -77,7 +91,7 @@ install_elb_tools(){
   unzip -q ${ARCHIVE}
 
   VER=`ls -d ElasticLoadBalancing-*`
-  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version already detected" && return 0
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version '${VER}' already detected" && return 0
   mv ${ARCHIVE} ${VER}.zip
   mv ${VER}* ${INSTALL_DIR}
   cd ${INSTALL_DIR}
@@ -92,8 +106,65 @@ install_elb_tools(){
 
 }
 
+install_rds_tools() {
+  local ARCHIVE="RDSCli.zip"
+  info "Obtaining current version of RDS Tools"
+  cd ${TMP_DIR}
+  rm -rf RDSCli*
+
+  curl --silent -o ${ARCHIVE} http://s3.amazonaws.com/rds-downloads/${ARCHIVE}
+  [ ! -f ${ARCHIVE} ] && error "Unable to obtain ${ARCHIVE} from AWS"
+  unzip -q ${ARCHIVE}
+  VER=`ls -d RDSCli-*`
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version '${VER}' already detected" && return 0
+  mv ${ARCHIVE} ${VER}.zip
+  mv ${VER}* ${INSTALL_DIR}
+  cd ${INSTALL_DIR}
+  
+  [ -f "${INSTALL_DIR}/rds" ] && rm -f ${INSTALL_DIR}/rds
+  ln -s ${INSTALL_DIR}/${VER} ${INSTALL_DIR}/rds
+
+  export AWS_RDS_HOME=${INSTALL_DIR}/rds
+  export PATH=${AWS_RDS_HOME}/bin:$PATH
+  
+  info "RDS Tools from http://aws.amazon.com/developertools/2928"
+  current_versions
+  
+  return 0
+}
+
+install_as_tools() {
+  local ARCHIVE="AutoScaling-2011-01-01.zip"
+  info "Obtaining current version of AutoScaling Tools"
+  cd ${TMP_DIR}
+  rm -rf AutoScaling*
+
+  curl --silent -o ${ARCHIVE} http://ec2-downloads.s3.amazonaws.com/${ARCHIVE}
+  [ ! -f ${ARCHIVE} ] && error "Unable to obtain ${ARCHIVE} from AWS"
+  unzip -q ${ARCHIVE}
+  VER=`ls -d AutoScaling-1*`
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version '${VER}' already detected" && return 0
+  mv ${ARCHIVE} ${VER}.zip
+  mv ${VER}* ${INSTALL_DIR}
+  cd ${INSTALL_DIR}
+  
+  [ -f "${INSTALL_DIR}/as" ] && rm -f ${INSTALL_DIR}/as
+  ln -s ${INSTALL_DIR}/${VER} ${INSTALL_DIR}/as
+
+  export AWS_AUTO_SCALING_HOME=${INSTALL_DIR}/as
+  export PATH=${AWS_AUTO_SCALING_HOME}/bin:$PATH
+  
+  info "Auto Scaling Tools from http://aws.amazon.com/developertools/2535?_encoding=UTF8&jiveRedirect=1"
+  current_versions
+  
+  return 0
+}
+
+
+
 followup() {
-  info "export EC2_HOME=${INSTALL_DIR}/ec2; export AWS_ELB_HOME=${INSTALL_DIR}/elb;export PATH=\$EC2_HOME/bin:\$AWS_ELB_HOME/bin:\$PATH"
+  info "export EC2_HOME=${INSTALL_DIR}/ec2; export AWS_ELB_HOME=${INSTALL_DIR}/elb;export AWS_RDS_HOME=${INSTALL_DIR}/rds;export AWS_AUTO_SCALING_HOME=${INSTALL_DIR}/as;"
+  info "export PATH=\$EC2_HOME/bin:\$AWS_ELB_HOME/bin:\$AWS_RDS_HOME/bin:\$AWS_AUTO_SCALING_HOME/bin:\$PATH"
   echo "export EC2_CERT=${INSTALL_DIR}/keys/cert.pem
 export EC2_PRIVATE_KEY=${INSTALL_DIR}/keys/pk.pem" > ${INSTALL_DIR}/keys/env
   info "Download the AWS X.509 keys and place in ${INSTALL_DIR}/keys as cert.pem and pk.pem"
@@ -108,6 +179,8 @@ process() {
   current_versions
   install_ec2_tools
   install_elb_tools
+  install_rds_tools
+  install_as_tools
   followup
 
   return 0
