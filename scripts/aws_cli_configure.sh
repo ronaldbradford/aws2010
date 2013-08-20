@@ -46,9 +46,16 @@ current_versions() {
 
   if [ -z `which as-version 2>/dev/null` ]
   then
-    warn "AS tools not installed"
+    warn "Autoscaling tools not installed"
   else
     info "AS tools "`as-version`" using "`which as-version`
+   fi
+
+  if [ -z `which mon-version 2>/dev/null` ]
+  then
+    warn "CloudWatch tools not installed"
+  else
+    info "CloudWatch tools "`mon-version`" using "`which mon-version`
    fi
 
   return 0
@@ -160,11 +167,39 @@ install_as_tools() {
   return 0
 }
 
+install_cw_tools() {
+  local ARCHIVE="CloudWatch-2010-08-01.zip"
+  info "Obtaining current version of AutoScaling Tools"
+  cd ${TMP_DIR}
+  rm -rf CloudWatch*
+
+  curl --silent -o ${ARCHIVE} http://ec2-downloads.s3.amazonaws.com/${ARCHIVE}
+  [ ! -f ${ARCHIVE} ] && error "Unable to obtain ${ARCHIVE} from AWS"
+  unzip -q ${ARCHIVE}
+
+  VER=`ls -d CloudWatch-1*`
+  [ -d "${INSTALL_DIR}/${VER}" ] && warn "Current version '${VER}' already detected" && return 0
+  mv ${ARCHIVE} ${VER}.zip
+  mv ${VER}* ${INSTALL_DIR}
+  cd ${INSTALL_DIR}
+  
+  [ -f "${INSTALL_DIR}/as" ] && rm -f ${INSTALL_DIR}/cw
+  ln -s ${INSTALL_DIR}/${VER} ${INSTALL_DIR}/cw
+
+  export AWS_CLOUDWATCH_HOME=${INSTALL_DIR}/cw
+  export PATH=${AWS_CLOUDWATCH_HOME}/bin:$PATH
+  
+  info "Cloud Watch Tools from http://aws.amazon.com/developertools/2534"
+  current_versions
+  
+  return 0
+}
+
 
 
 followup() {
-  info "export EC2_HOME=${INSTALL_DIR}/ec2; export AWS_ELB_HOME=${INSTALL_DIR}/elb;export AWS_RDS_HOME=${INSTALL_DIR}/rds;export AWS_AUTO_SCALING_HOME=${INSTALL_DIR}/as;"
-  info "export PATH=\$EC2_HOME/bin:\$AWS_ELB_HOME/bin:\$AWS_RDS_HOME/bin:\$AWS_AUTO_SCALING_HOME/bin:\$PATH"
+  info "export EC2_HOME=${INSTALL_DIR}/ec2; export AWS_ELB_HOME=${INSTALL_DIR}/elb;export AWS_RDS_HOME=${INSTALL_DIR}/rds;export AWS_AUTO_SCALING_HOME=${INSTALL_DIR}/as; export AWS_CLOUDWATCH_HOME=${INSTALL_DIR}/cw"
+  info "export PATH=\$EC2_HOME/bin:\$AWS_ELB_HOME/bin:\$AWS_RDS_HOME/bin:\$AWS_AUTO_SCALING_HOME/bin:\$AWS_CLOUDWATCH_HOME/bin:\$PATH"
   echo "export EC2_CERT=${INSTALL_DIR}/keys/cert.pem
 export EC2_PRIVATE_KEY=${INSTALL_DIR}/keys/pk.pem" > ${INSTALL_DIR}/keys/env
   info "Download the AWS X.509 keys and place in ${INSTALL_DIR}/keys as cert.pem and pk.pem"
@@ -181,6 +216,7 @@ process() {
   install_elb_tools
   install_rds_tools
   install_as_tools
+  install_cw_tools
   followup
 
   return 0

@@ -174,8 +174,11 @@ generate_ec2_list() {
   [ $RC -ne 0 ] && cat ${TMP_FILE}.err ${TMP_FILE} && error "[${RC}] Unable to describe Instances"
 
   local DIFF
-  DIFF=`diff ${EC2_INSTANCES} ${TMP_FILE} | wc -l`
-  [ ${DIFF} -eq 0 ] && info "No change in EC2 instances detected, exiting nicely" && return 1
+  if [ -f "${EC2_INSTANCES}" ] 
+  then
+    DIFF=`diff ${EC2_INSTANCES} ${TMP_FILE} | wc -l`
+    [ ${DIFF} -eq 0 ] && info "No change in EC2 instances detected, exiting nicely" && return 1
+  fi
   warn "Change in EC2 instances detected"
   mv ${TMP_FILE} ${EC2_INSTANCES}
 
@@ -220,7 +223,7 @@ process() {
   generate_server_index
 
   CFG_SERVER_INDEX="${CNF_DIR}/servers${LOG_EXT}"
-  ${SCRIPT_DIR}/detect_spot_change.sh -n ${SERVER_INDEX} & 
+  #${SCRIPT_DIR}/detect_spot_change.sh -n ${SERVER_INDEX} & 
   # Give script time to get current config before it is overritten next step
   sleep 15
   cp ${SERVER_INDEX} ${CFG_SERVER_INDEX}
