@@ -1,15 +1,16 @@
 # http://aws.amazon.com/ec2/pricing/
 # http://aws.amazon.com/ec2/instance-types/
 # Region	instance-type	cents-per-hour
-ec2	us-east-1	m1.small	9
-ec2	us-east-1	m1.large	34
-ec2	us-east-1	m1.xlarge	68
-ec2	us-east-1	t1.micro	2
-ec2	us-east-1	m2.xlarge	50
-ec2	us-east-1	m2.2xlarge	100
-ec2	us-east-1	m2.4xlarge	200
-ec2	us-east-1	c1.medium	17
+ec2	us-east-1	m3.xlarge	45
+ec2	us-east-1	m3.2xlarge	90
+ec2	us-east-1	m1.small	6
+ec2	us-east-1	m1.medium	9
+ec2	us-east-1	m1.large	24
+ec2	us-east-1	m1.xlarge	48
+ec2	us-east-1	m2.xlarge	41
+ec2	us-east-1	m2.2xlarge	82
+ec2	us-east-1	m2.4xlarge	164
+ec2	us-east-1	c1.medium	15
 ec2	us-east-1	c1.xlarge	68
-ec2	us-east-1	cc1.4xlarge	160
-ec2	us-east-1	gc1.4xlarge	210
 ec2	us-east-1	c1.medium	7  spot
+ec2	us-east-1	t1.micro	2
